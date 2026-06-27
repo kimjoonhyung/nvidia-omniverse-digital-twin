@@ -6,9 +6,14 @@
 **/*.d.ts
 **/package-lock.json
 
+# Python
+**/__pycache__/
+**/*.pyc
+
 # 민감 파일 (절대 커밋 금지)
 *.pem
 *.key
+**/certs/
 **/CREDENTIALS.txt
 **/ngc-param.json
 **/params.json

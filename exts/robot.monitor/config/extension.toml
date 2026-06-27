@@ -1,0 +1,13 @@
+[package]
+version = "0.1.0"
+title = "Robot Telemetry Monitor"
+description = "Consumes robot telemetry from AWS Kinesis and shows live charts in omni.ui."
+category = "Internal"
+keywords = ["robot", "telemetry", "iot", "kinesis", "monitor"]
+
+[dependencies]
+"omni.ui" = {}
+"omni.kit.uiapp" = {}
+
+[[python.module]]
+name = "robot.monitor"

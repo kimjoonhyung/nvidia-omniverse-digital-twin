@@ -71,6 +71,7 @@ npx cdk destroy
 | **WORKSHOP.md** | 입문자 핸즈온 실습 시트 (URL 복붙으로 따라하기) | 수강생 |
 | **NUCLEUS_DEPLOY.md** | 협업용 Nucleus 서버 EC2 수동 배포 + 자급자족 패키지(Collect) | 강사/인프라 |
 | **cdk-omniverse/README.md** | **CDK로 전체 인프라(N클라+1Nucleus) 자동 배포** (실배포 검증 완료) | 인프라 |
+| **IOT_MONITORING.md** | **C단계: AWS IoT→Kinesis→Isaac Sim 실시간 데이터 트윈** (차트·로봇 이동·클릭) | 강사/개발 |
 
 > 한국어로 작성. 코드·명령·경로는 원문 유지.
 
@@ -188,7 +189,9 @@ npx cdk deploy -c keyName=omni-seoul -c isaacAmiId=ami-xxx -c allowCidr=<IP>/32 
 - ✅ **A. 시각화/레이아웃** — 창고+로봇 배치 완료
 - ✅ **협업 인프라** — Nucleus + 자급자족 패키지 + 2대 Live 동시편집 완료
 - ✅ **IaC** — CDK로 전체 인프라 코드화 + 실배포 검증 + Live 협업 재확인 완료
+- ✅ **C. 실시간 데이터 연동** — IoT Core→Kinesis→Isaac Sim. 실시간 차트 + 로봇 부드러운 이동
+  + 클릭 인터랙션 + USD 기반 Live 공유 (PoC: Nova Carter 1대). → `IOT_MONITORING.md`
 - ⬜ **B. 동작 시뮬레이션** — PhysX 물리, 로봇/컨베이어 거동 (워크숍 "와!" 포인트)
-- ⬜ **C. 실시간 데이터 연동** — 센서/PLC/IoT 실데이터 → 살아있는 트윈
+- ⬜ **C 확장** — 다중 로봇, 헤드리스 발행자, CDK 통합, Grafana 이력 분석
 
-상세 실습은 각 문서를 참고. B/C 단계는 심화 과정으로 분리 권장.
+상세 실습은 각 문서를 참고. B 단계는 심화 과정으로 분리 권장.
