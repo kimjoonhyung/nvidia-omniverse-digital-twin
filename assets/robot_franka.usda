@@ -1,0 +1,15 @@
+#usda 1.0
+(
+    # Franka Panda - 7축 로봇팔
+    defaultPrim = "panda"
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+def Xform "panda" (
+    prepend references = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Robots/FrankaRobotics/FrankaPanda/franka.usd@
+)
+{
+    # full_warehouse(미터,scale1) 기준. 로봇은 원본 크기 그대로(1.0)
+    float3 xformOp:scale = (1, 1, 1)
+    uniform token[] xformOpOrder = ["xformOp:scale"]
+}

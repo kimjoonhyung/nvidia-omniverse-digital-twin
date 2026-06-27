@@ -1,0 +1,15 @@
+#usda 1.0
+(
+    # iw_hub - 팔레트 운반 AMR
+    defaultPrim = "iw_hub"
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+def Xform "iw_hub" (
+    prepend references = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Robots/Idealworks/iwhub/iw_hub.usd@
+)
+{
+    # full_warehouse(미터,scale1) 기준. 로봇은 원본 크기 그대로(1.0)
+    float3 xformOp:scale = (1, 1, 1)
+    uniform token[] xformOpOrder = ["xformOp:scale"]
+}

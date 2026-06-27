@@ -1,0 +1,13 @@
+#usda 1.0
+(
+    defaultPrim = "Conveyor"
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+def Xform "Conveyor" (
+    prepend references = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Props/Conveyors/ConveyorBelt_A01.usd@
+)
+{
+    float3 xformOp:scale = (1, 1, 1)
+    uniform token[] xformOpOrder = ["xformOp:scale"]
+}

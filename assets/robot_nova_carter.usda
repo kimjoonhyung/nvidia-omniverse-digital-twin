@@ -1,0 +1,15 @@
+#usda 1.0
+(
+    # Nova Carter - 창고 자율주행 AMR
+    defaultPrim = "nova_carter"
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+def Xform "nova_carter" (
+    prepend references = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Robots/NVIDIA/NovaCarter/nova_carter.usd@
+)
+{
+    # full_warehouse(미터,scale1) 기준. 로봇은 원본 크기 그대로(1.0)
+    float3 xformOp:scale = (1, 1, 1)
+    uniform token[] xformOpOrder = ["xformOp:scale"]
+}

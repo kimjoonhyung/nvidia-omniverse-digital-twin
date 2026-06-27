@@ -1,0 +1,34 @@
+#usda 1.0
+(
+    # 팔레트 래퍼 USD
+    # - 원본 pallet.usd를 reference 로 불러오고
+    # - OmniPBR 머티리얼에 텍스처(albedo/normal)를 연결하며
+    # - Lab(100x 스케일) 아래에 배치해도 정상 크기가 되도록 scale=0.01 을 미리 적용
+    defaultPrim = "Pallet_Textured"
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+def Xform "Pallet_Textured" (
+    # 원본 팔레트를 참조. 같은 NVIDIA S3 서버의 원본을 그대로 사용
+    prepend references = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Props/Pallet/pallet.usd@
+)
+{
+    # 부모 Lab 의 100배 스케일을 상쇄해 실제 크기(약 1.2m)로 보이게 함.
+    # (Lab 바깥 최상위에 둘 경우에는 이 값을 1.0 으로 바꾸세요)
+    float3 xformOp:scale = (0.01, 0.01, 0.01)
+    uniform token[] xformOpOrder = ["xformOp:scale"]
+
+    # ---- 머티리얼 텍스처 연결 (원본은 텍스처가 비어 있어 회색으로 보였음) ----
+    over "Looks"
+    {
+        over "OmniPBR"
+        {
+            over "Shader"
+            {
+                asset inputs:diffuse_texture = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Props/Pallet/Materials/Textures/T_PalletWooden_A_Albedo.png@
+                asset inputs:normalmap_texture = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Props/Pallet/Materials/Textures/T_PalletWooden_A_Normal.png@
+            }
+        }
+    }
+}

@@ -1,0 +1,18 @@
+# Node / CDK
+**/node_modules/
+**/cdk.out/
+**/cdk.context.json
+**/*.js
+**/*.d.ts
+**/package-lock.json
+
+# 민감 파일 (절대 커밋 금지)
+*.pem
+*.key
+**/CREDENTIALS.txt
+**/ngc-param.json
+**/params.json
+**/*secret*
+
+# OS
+.DS_Store
