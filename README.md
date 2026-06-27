@@ -5,6 +5,63 @@ NVIDIA Isaac Sim(Omniverse) 기반으로 **공장/창고 디지털 트윈을 만
 
 ---
 
+## 🚀 Quick Start — 클론 후 CDK 배포
+
+워크숍 인프라(Isaac Sim 클라이언트 N대 + Nucleus 1대)를 한 번에 띄운다.
+
+### 1) 클론 + 의존성
+```bash
+git clone https://github.com/kimjoonhyung/nvidia-omniverse-digital-twin.git
+cd nvidia-omniverse-digital-twin/cdk-omniverse
+npm install
+```
+
+### 2) 사전 준비 (최초 1회)
+```bash
+# (a) AWS 자격증명 확인
+aws sts get-caller-identity
+
+# (b) CDK 부트스트랩 (계정·리전당 1회)
+npx cdk bootstrap aws://<ACCOUNT_ID>/ap-northeast-2
+
+# (c) Isaac Sim 마켓플레이스 AMI ID 조회 (마켓플레이스 구독 동의 필요)
+aws ec2 describe-images --region ap-northeast-2 --owners 679593333241 \
+  --filters "Name=name,Values=OV-Template-aws-ubuntu-isaac_sim-*" \
+  --query 'reverse(sort_by(Images,&CreationDate))[0].Id' --output text
+
+# (d) 내 공인 IP (DCV/SSH 접근 제한용)
+curl -s https://checkip.amazonaws.com
+```
+그 외: **EC2 키페어**(예 `omni-seoul`), **NGC API 키**(`nvapi-...`) 준비.
+
+### 3) 배포
+```bash
+npx cdk deploy \
+  -c keyName=<키페어명> \
+  -c isaacAmiId=<위 (c)의 AMI ID> \
+  -c allowCidr=<위 (d)의 IP>/32 \
+  -c clientCount=2 \
+  --parameters NgcApiKey=nvapi-xxxxxxxx \
+  --parameters UbuntuPassword=<DCV 로그인 비밀번호>
+```
+- `clientCount` 기본 3. `NgcApiKey`·`UbuntuPassword`는 NoEcho(로그 비노출).
+
+### 4) 배포 후
+- 출력(Outputs)의 **클라이언트 DCV URL**(`https://<IP>:8443`) → `ubuntu` / 지정한 비밀번호로 로그인.
+- Isaac Sim에서 **Content → Add New Connection** → 출력의 **Nucleus 사설IP** 입력 →
+  `omniverse` / Nucleus 서버 `/opt/nucleus/CREDENTIALS.txt` 의 MASTER_PASSWORD.
+- Nucleus 자동설치는 5~10분 (`/opt/nucleus/READY` 생성 시 완료).
+
+### 5) 삭제 (비용 정리)
+```bash
+npx cdk destroy
+```
+
+> 자세한 파라미터·문제해결·실배포로 잡은 버그 → **`cdk-omniverse/README.md`**.
+> 수동 배포(학습용)나 씬 제작은 아래 문서들 참고.
+
+---
+
 ## 0. 문서 구성
 
 | 문서 | 내용 | 대상 |
