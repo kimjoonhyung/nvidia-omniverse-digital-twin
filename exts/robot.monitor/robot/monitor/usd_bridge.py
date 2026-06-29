@@ -47,7 +47,12 @@ def find_robot_prim_path(stage, robot_id: str):
     base = target.rstrip("0123456789")  # nova_carter_01 → novacarter
     exact = None       # 프림 경로에 robot_id 전체 포함 (가장 정확)
     loose = None       # 베이스명만 일치 (번호 없는 공유 프림 등)
-    for prim in stage.Traverse():
+    try:
+        prims = stage.Traverse()
+    except Exception:
+        # 씬 로딩 중이거나 stage 타입이 호환 안 되면(usdrt 등) 조용히 패스
+        return None
+    for prim in prims:
         cd = prim.GetCustomData()
         if cd.get(ROBOT_ID_KEY) == robot_id:
             return str(prim.GetPath())
@@ -133,7 +138,11 @@ def list_telemetry_prims(stage):
     result = {}
     if stage is None:
         return result
-    for prim in stage.Traverse():
+    try:
+        prims = stage.Traverse()
+    except Exception:
+        return result
+    for prim in prims:
         cd = prim.GetCustomData()
         if TELEMETRY_KEY in cd:
             rid = cd.get(ROBOT_ID_KEY) or prim.GetName()

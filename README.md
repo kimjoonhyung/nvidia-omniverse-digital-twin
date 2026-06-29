@@ -72,6 +72,7 @@ npx cdk destroy
 | **NUCLEUS_DEPLOY.md** | 협업용 Nucleus 서버 EC2 수동 배포 + 자급자족 패키지(Collect) | 강사/인프라 |
 | **cdk-omniverse/README.md** | **CDK로 전체 인프라(N클라+1Nucleus) 자동 배포** (실배포 검증 완료) | 인프라 |
 | **IOT_MONITORING.md** | **C단계: AWS IoT→Kinesis→Isaac Sim 실시간 데이터 트윈** (차트·로봇 이동·클릭) | 강사/개발 |
+| **WORKSHOP_LIVE_DATA.md** | **핸즈온: 공장 4종 로봇 실시간 데이터 트윈** (STEP 0~6, 복붙 따라하기) | 수강생 |
 
 > 한국어로 작성. 코드·명령·경로는 원문 유지.
 

@@ -1,0 +1,64 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+# 워크샵용 공장 씬 — 대형 창고 + 로봇 4종.
+# 각 로봇 프림에 customData.robot_id 를 지정해 텔레메트리 매칭을 보장.
+# (실제 워크샵에서는 full_warehouse 를 배경으로 열고 이 로봇들을 배치)
+
+def Xform "World"
+{
+    # 대형 창고 배경 (NVIDIA Simple_Warehouse)
+    def Xform "warehouse" (
+        prepend references = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Environments/Simple_Warehouse/full_warehouse.usd@
+    )
+    {
+    }
+
+    # --- 로봇 4종 (생성기 robot_id 와 1:1 매칭) ---
+    # 로봇 위치: full_warehouse 내부 좌표(X:-24~3, Y:-16~28) 안에 배치.
+    def Xform "nova_carter_01" (
+        prepend references = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Robots/NVIDIA/NovaCarter/nova_carter.usd@
+        customData = { string robot_id = "nova_carter_01" }
+    )
+    {
+        float3 xformOp:translate = (-15, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+
+    def Xform "iw_hub_01" (
+        prepend references = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Robots/Idealworks/iwhub/iw_hub.usd@
+        customData = { string robot_id = "iw_hub_01" }
+    )
+    {
+        float3 xformOp:translate = (-8, 10, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+
+    def Xform "franka_01" (
+        prepend references = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Robots/FrankaRobotics/FrankaPanda/franka.usd@
+        customData = { string robot_id = "franka_01" }
+    )
+    {
+        float3 xformOp:translate = (-18, 15, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+
+    # digit_01: 휴머노이드 원점이 토르소라 발이 바닥에 닿으려면 Z≈1.134 (화면에서 측정).
+    def Xform "digit_01" (
+        prepend references = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Robots/Agility/Digit/digit_v4.usd@
+        customData = { string robot_id = "digit_01" }
+    )
+    {
+        float3 xformOp:translate = (-5, 20, 1.1341344687369161)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+    }
+
+    def DistantLight "sun"
+    {
+        float inputs:intensity = 3000
+    }
+}

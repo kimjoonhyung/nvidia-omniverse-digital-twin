@@ -28,6 +28,16 @@ NEUTRAL = 0xFFCCCCCC
 
 SERIES_KEYS = ("battery_pct", "motor_temp_c", "speed_mps")
 
+# 로봇 타입별 바닥 Z 오프셋. 원점 위치가 타입마다 다르다:
+#  - AMR(바퀴)/로봇팔: 원점이 바닥 → 0.0
+#  - 휴머노이드(Digit): 원점이 토르소 → 발이 바닥에 닿으려면 Z≈1.1341 (화면 측정)
+FLOOR_Z_BY_TYPE = {"amr": 0.0, "arm": 0.0, "humanoid": 1.1341344687369161}
+DEFAULT_FLOOR_Z = 0.0
+
+
+def floor_z_for(rec):
+    return FLOOR_Z_BY_TYPE.get(rec.get("robot_type"), DEFAULT_FLOOR_Z)
+
 
 class RobotMonitorExtension(omni.ext.IExt):
     def on_startup(self, ext_id):
@@ -46,12 +56,13 @@ class RobotMonitorExtension(omni.ext.IExt):
         self._labels = {}
         self._plots = {}
         self._frame_count = 0
+        self._scene_open_attempted = False        # 자동 오픈 1회만 시도
 
         self._window = ui.Window("Robot Telemetry Monitor", width=440, height=600)
         self._build_ui()
 
-        # 편의: 스테이지에 로봇 텔레메트리 프림이 없으면 PoC 테스트 씬 자동 오픈.
-        self._maybe_open_test_scene()
+        # 자동 오픈은 기동 직후가 아니라 update 루프에서 지연 실행(아래 _on_update).
+        # (startup 즉시 열면 omni client/네트워크 준비 전이라 S3 reference 로딩 실패)
 
         self._sub = (
             omni.kit.app.get_app().get_update_event_stream()
@@ -162,6 +173,12 @@ class RobotMonitorExtension(omni.ext.IExt):
         if stage is None:
             return
 
+        # 기동 후 ~약 3초(180프레임) 뒤 1회만 씬 자동 오픈 (네트워크/클라이언트 준비 후)
+        self._frame_count += 1
+        if not self._scene_open_attempted and self._frame_count > 180:
+            self._scene_open_attempted = True
+            self._maybe_open_test_scene()
+
         # 1) 발행 모드: Kinesis 시계열 최신값을 USD 프림에 기록
         if self._publish:
             st = self._consumer.status
@@ -185,7 +202,6 @@ class RobotMonitorExtension(omni.ext.IExt):
 
         # 2) 표시: USD 에서 telemetry 있는 프림 수집 → 로봇 목록/시계열 갱신
         #    (UI 부하 줄이려 몇 프레임마다 전체 스캔)
-        self._frame_count += 1
         if self._frame_count % 30 == 0 or not self._prim_by_rid:
             mapping = usd_bridge.list_telemetry_prims(stage)  # path → rid
             self._prim_by_rid = {rid: path for path, rid in mapping.items()}
@@ -242,11 +258,12 @@ class RobotMonitorExtension(omni.ext.IExt):
                 continue
             tx, ty = float(pos["x"]), float(pos["y"])
             th = float(rec.get("heading_deg", 0.0))
+            fz = floor_z_for(rec)   # 로봇 타입별 바닥 Z
             m = self._motion.get(rid)
             if m is None:
                 # 최초: 목표=현재 (점프 없이 시작)
                 self._motion[rid] = {"cur": [tx, ty, th], "tgt": [tx, ty, th]}
-                usd_bridge.apply_motion_xyh(stage, ppath, tx, ty, th)
+                usd_bridge.apply_motion_xyh(stage, ppath, tx, ty, th, fz)
                 continue
             m["tgt"] = [tx, ty, th]
             cx, cy, ch = m["cur"]
@@ -258,22 +275,31 @@ class RobotMonitorExtension(omni.ext.IExt):
             dh = ((th - ch + 180) % 360) - 180
             ch += dh * a
             m["cur"] = [cx, cy, ch]
-            usd_bridge.apply_motion_xyh(stage, ppath, cx, cy, ch)
+            usd_bridge.apply_motion_xyh(stage, ppath, cx, cy, ch, fz)
 
     def _maybe_open_test_scene(self):
-        """스테이지가 비어(로봇 프림 없음) 있으면 PoC 테스트 씬을 연다."""
+        """스테이지에 로봇 프림이 없으면 워크샵 씬을 자동으로 연다.
+        우선순위: 4종 공장 씬(factory_scene) > 단일 PoC 씬(test_scene).
+        """
         import os
-        test_scene = "/home/ubuntu/digital_twin/iot/test_scene.usda"
+        candidates = [
+            "/home/ubuntu/digital_twin/iot/factory_scene.usda",
+            "/home/ubuntu/digital_twin/iot/test_scene.usda",
+        ]
         try:
             stage = usd_bridge.get_stage()
             has_robot = False
             if stage is not None:
                 has_robot = usd_bridge.find_robot_prim_path(stage, "nova_carter_01") is not None
-            if not has_robot and os.path.exists(test_scene):
-                carb.log_warn(f"[robot.monitor] opening test scene: {test_scene}")
-                omni.usd.get_context().open_stage(test_scene)
+            if has_robot:
+                return
+            for scene in candidates:
+                if os.path.exists(scene):
+                    carb.log_warn(f"[robot.monitor] opening scene: {scene}")
+                    omni.usd.get_context().open_stage(scene)
+                    return
         except Exception as ex:
-            carb.log_warn(f"[robot.monitor] open test scene failed: {ex}")
+            carb.log_warn(f"[robot.monitor] open scene failed: {ex}")
 
     def _resolve_prim(self, stage, rid):
         if rid in self._prim_by_rid:
