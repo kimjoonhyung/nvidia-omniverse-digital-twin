@@ -25,7 +25,7 @@ aws sts get-caller-identity
 npx cdk bootstrap aws://<ACCOUNT_ID>/ap-northeast-2
 
 # (c) Isaac Sim 마켓플레이스 AMI ID 조회 (마켓플레이스 구독 동의 필요)
-aws ec2 describe-images --region ap-northeast-2 --owners AWS_ACCOUNT_NUMBER \
+aws ec2 describe-images --region ap-northeast-2 --owners <ACCOUNT_ID> \
   --filters "Name=name,Values=OV-Template-aws-ubuntu-isaac_sim-*" \
   --query 'reverse(sort_by(Images,&CreationDate))[0].Id' --output text
 
