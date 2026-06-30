@@ -38,7 +38,7 @@ curl -s https://checkip.amazonaws.com
 ```bash
 npx cdk deploy \
   -c keyName=<키페어명> \
-  -c isaacAmiId=<위 (c)의 AMI ID> \
+  -c isaacAmiId=ami-0aff0d08f1ef5048f \
   -c allowCidr=<위 (d)의 IP>/32 \
   -c clientCount=2 \
   --parameters NgcApiKey=nvapi-xxxxxxxx \
