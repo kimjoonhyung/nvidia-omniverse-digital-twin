@@ -84,6 +84,13 @@ export class OmniverseWorkshopStack extends cdk.Stack {
     });
     clientSg.addIngressRule(ec2.Peer.ipv4(allowCidr), ec2.Port.tcp(8443), 'DCV');
     clientSg.addIngressRule(ec2.Peer.ipv4(allowCidr), ec2.Port.tcp(22), 'SSH');
+    // Isaac Sim WebRTC 라이브스트림 (뷰어 전용 시나리오).
+    //  - TCP 49100: 시그널링,  UDP 47998: 미디어(둘 다 필수. TCP만 열면 영상 안 나옴)
+    //  - TCP 8210 : (선택) Docker Compose 브라우저 웹 뷰어. 네이티브 클라이언트는 불필요.
+    // 3대 모두 열어두고, 워크샵에서 1대를 스트리밍 호스트로 지정해 쓴다.
+    clientSg.addIngressRule(ec2.Peer.ipv4(allowCidr), ec2.Port.tcp(49100), 'Isaac WebRTC signaling');
+    clientSg.addIngressRule(ec2.Peer.ipv4(allowCidr), ec2.Port.udp(47998), 'Isaac WebRTC media');
+    clientSg.addIngressRule(ec2.Peer.ipv4(allowCidr), ec2.Port.tcp(8210), 'Isaac WebRTC browser viewer (Docker Compose, optional)');
 
     const nucleusSg = new ec2.SecurityGroup(this, 'NucleusSg', {
       vpc, description: 'Nucleus server', allowAllOutbound: true,
@@ -212,5 +219,13 @@ export class OmniverseWorkshopStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'ConnectNucleusFromIsaac', {
       value: `Add Nucleus connection in Isaac Sim to: ${nucleus.instancePrivateIp}`,
     });
+    // 뷰어 전용 시나리오: 마지막 클라이언트를 스트리밍 호스트로 쓰는 예시 (WORKSHOP_STREAM_VIEWER.md).
+    if (clients.length > 0) {
+      const host = clients[clients.length - 1];
+      new cdk.CfnOutput(this, 'StreamHostPublicIp', {
+        value: host.instancePublicIp,
+        description: 'WebRTC viewer host: run isaac-sim.streaming.sh here, connect clients to this IP:49100',
+      });
+    }
   }
 }
