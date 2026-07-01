@@ -88,16 +88,16 @@ class RobotMonitorExtension(omni.ext.IExt):
                 with ui.HStack(height=24):
                     ui.Label("Mode:", width=50)
                     self._pub_cb = ui.CheckBox(width=20)
-                    self._pub_cb.model.set_value(True)  # PoC 기본 ON
+                    self._pub_cb.model.set_value(True)  # ON by default for PoC
                     self._pub_cb.model.add_value_changed_fn(self._on_publish_toggle)
-                    ui.Label("Publish (Kinesis→USD, 강사용)", style={"color": NEUTRAL})
+                    ui.Label("Publish (Kinesis->USD, instructor)", style={"color": NEUTRAL})
                 with ui.HStack(height=24):
                     ui.Label("Move:", width=50)
                     self._move_cb = ui.CheckBox(width=20)
                     self._move_cb.model.set_value(True)
                     self._move_cb.model.add_value_changed_fn(
                         lambda m: setattr(self, "_move_robots", m.get_value_as_bool()))
-                    ui.Label("데이터로 로봇 이동 (position→transform)", style={"color": NEUTRAL})
+                    ui.Label("Move robots from data (position->transform)", style={"color": NEUTRAL})
                 with ui.HStack(height=22):
                     ui.Label("Stream:", width=60)
                     self._status_label = ui.Label("display mode", style={"color": NEUTRAL})
