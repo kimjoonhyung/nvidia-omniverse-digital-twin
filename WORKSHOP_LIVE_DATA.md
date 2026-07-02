@@ -90,13 +90,16 @@ aws iot create-topic-rule --region $RG --rule-name robot_telemetry_to_kinesis --
 
 ## STEP 2. 가짜 데이터 생성기 실행 (로봇 4종)
 
+발행기는 venv + awsiotsdk + `iot/certs/` 인증서가 필요하다. 최초 1회 셋업 후 실행:
 ```bash
-cd ~/digital_twin/iot
-export IOT_ENDPOINT=$(aws iot describe-endpoint --region ap-northeast-2 \
-  --endpoint-type iot:Data-ATS --query endpointAddress --output text)
-python3 -u factory_simulator.py --interval 5
+cd ~/digital_twin/iot          # (워크샵 클라이언트에선 ~/nvidia-omniverse-digital-twin/iot)
+bash setup_publisher.sh        # venv + awsiotsdk + IOT_ENDPOINT 캐시 (멱등, 최초 1회)
+IOT_ENDPOINT=$(cat ~/.iot_endpoint) ~/venv/bin/python -u factory_simulator.py --interval 3
 ```
-4종 로봇이 5초마다 데이터를 보낸다:
+> `~/venv/bin/python` 을 써야 한다(시스템 python 엔 awsiotsdk 없음). 상세는 `IOT_MONITORING.md` STEP 2.
+> `factory_simulator.py` 가 4종을 발행한다. `robot_simulator.py` 는 nova_carter 만 발행하므로 데모엔 부적합.
+
+4종 로봇이 데이터를 보낸다:
 | 로봇 | 타입 | 주요 지표 |
 |------|------|-----------|
 | nova_carter_01 | AMR | battery, speed, motor_temp, 이동 |
