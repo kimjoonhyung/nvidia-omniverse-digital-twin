@@ -56,7 +56,7 @@ npx cdk deploy \
 | `clientInstanceType` | g6e.2xlarge | 클라이언트 타입 (GPU 필요) |
 | `nucleusInstanceType` | m7i.xlarge | Nucleus 타입 (GPU 불필요) |
 | `keyName` | (없음) | 기존 EC2 키페어 이름 |
-| `allowCidr` | 0.0.0.0/0 | DCV/SSH 허용 IP — **반드시 `/32`로 좁힐 것** |
+| `allowCidr` | **(필수)** | DCV/SSH/WebRTC 허용 IP — **`내공인IP/32` 필수**. 미지정·`0.0.0.0/0`이면 배포 차단 |
 | `isaacAmiId` | (없음) | Isaac Sim 마켓플레이스 AMI ID (리전별 상이) |
 
 **CFN Parameter (`--parameters`)** — 비밀값:

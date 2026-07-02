@@ -1,16 +1,17 @@
-# 핸즈온 워크샵 — 뷰어 전용(View-Only) WebRTC 디지털 트윈
+# 핸즈온 워크샵 — WebRTC 스트리밍 디지털 트윈 (네이티브 클라이언트)
 
 > **목표**: 워크샵에서 배포한 Isaac Sim 클라이언트 3대 중 **1대를 "스트리밍 호스트"**로 만들고,
-> 나머지 참가자는 **자기 화면에서 그 트윈을 실시간으로 "보기만"** 한다(조작·GPU 불필요).
-> 강사(또는 발표자) 1명이 씬을 돌리고, 여러 명이 WebRTC 로 같은 화면을 본다.
+> 나머지 참가자는 **자기 노트북의 데스크톱 앱**으로 그 트윈을 실시간으로 본다.
+> 스트림은 관전용이지만 **마우스 클릭·드래그·키보드 입력이 원격 씬에 전달**되어 조작도 가능하다
+> (카메라 회전, 로봇 클릭 선택, 패널 조작 등). GPU 는 호스트 1대만 있으면 된다.
 > **대상**: 입문자. 명령은 그대로 복붙.
 > **소요**: 약 20~30분 (인프라가 이미 떠 있다는 전제).
 
 ```
-[클라이언트 #3 = 스트리밍 호스트]         [뷰어들 (노트북/브라우저)]
- isaac-sim.streaming.sh  ──WebRTC──▶  네이티브 클라이언트  또는  Chromium 브라우저
-   (GPU 렌더링)          49100/TCP 시그널
-                         47998/UDP 미디어
+[클라이언트 #3 = 스트리밍 호스트]                [참가자들: 데스크톱 앱]
+  isaac-sim.streaming.sh (GPU 렌더 + WebRTC)  ──49100/TCP 시그널──▶  Isaac Sim WebRTC
+    + robot.monitor 확장 + 공장 씬             ──47998/UDP 미디어──▶   Streaming Client
+                                                                     (Win/macOS/Linux)
 ```
 
 전제:
@@ -47,19 +48,18 @@ npx cdk deploy \
 | 22 | TCP | SSH (기존) |
 | **49100** | **TCP** | **WebRTC 시그널링** |
 | **47998** | **UDP** | **WebRTC 미디어** — TCP만 열면 영상이 안 나온다 |
-| 8210 | TCP | (선택) 브라우저 웹 뷰어 — 옵션 B(Docker)에서만 사용 |
 
 배포 후 `Outputs` 의 **`StreamHostPublicIp`** 가 스트리밍 호스트로 쓸 클라이언트(#3)의 공인 IP다.
+아래에서 이 값을 `HOST_IP` 로 쓴다.
 
 ---
 
-## STEP 1. 스트리밍 호스트 준비 (클라이언트 #3)
+## STEP 1. 스트리밍 호스트 접속 (클라이언트 #3)
 
-호스트로 쓸 클라이언트에 **DCV(`https://<IP>:8443`)** 또는 SSH 로 접속한다.
-씬을 미리 띄워두고 싶으면 먼저 일반 모드로 씬을 확인해도 되지만,
-스트리밍은 **`--no-window`(헤드리스)** 로 도는 별도 실행이므로 여기서는 스트리밍 전용으로 바로 띄운다.
+호스트로 쓸 클라이언트에 **DCV(`https://<HOST_IP>:8443`)** 또는 SSH 로 접속한다.
+스트리밍은 **헤드리스(`--no-window`)** 별도 실행이므로, 여기서는 스트리밍 전용으로 바로 띄운다.
 
-호스트의 **공인 IP** 를 확인:
+호스트 자신의 **공인 IP**(뷰어가 접속할 주소) 확인:
 ```bash
 HOST_IP=$(curl -s https://checkip.amazonaws.com); echo "HOST_IP=$HOST_IP"
 ```
@@ -69,88 +69,79 @@ HOST_IP=$(curl -s https://checkip.amazonaws.com); echo "HOST_IP=$HOST_IP"
 ## STEP 2. 스트리밍 서버 실행 (호스트에서)
 
 Isaac Sim 설치 경로는 마켓플레이스 AMI 기준 `/opt/IsaacSim`.
+우리 공장 트윈(로봇 4종 + `robot.monitor` 패널)을 함께 스트리밍하도록 확장을 붙여 실행한다:
 
 ```bash
 cd /opt/IsaacSim
 ./isaac-sim.streaming.sh \
+  --ext-folder /home/ubuntu/digital_twin/exts --enable robot.monitor \
   --/exts/omni.kit.livestream.app/primaryStream/publicIp=$HOST_IP \
   --/exts/omni.kit.livestream.app/primaryStream/signalPort=49100 \
   --/exts/omni.kit.livestream.app/primaryStream/streamPort=47998
 ```
-- 첫 기동은 셰이더 컴파일로 수 분. 로그에 **`Isaac Sim Full Streaming App is loaded.`** 와
-  **`Streaming server started.`** 가 뜨면 준비 완료.
+- 첫 기동은 셰이더 컴파일로 수 분. 로그에 **`Streaming server started.`** 와
+  **`Isaac Sim Full Streaming App is loaded.`** 가 뜨면 준비 완료.
+- `robot.monitor` 확장이 **`factory_scene.usda` 를 자동 오픈**한다(기동 후 ~3초 지연).
+  "Robot Telemetry Monitor" 패널도 함께 뜬다.
 - 이 창(SSH/터미널)은 **켜둔 채로** 둔다. Ctrl+C 로 중지.
 - `publicIp` 는 **원격(인터넷)에서 볼 때만** 필요. 같은 VPC 내부에서만 볼 거면 생략 가능.
 
-> **우리 워크샵의 트윈 씬을 스트리밍하려면**: 위 스트리밍 앱에도 `robot.monitor` 확장과
-> 공장 씬을 붙이면 된다(라이브 데이터 트윈까지 함께 스트리밍):
-> ```bash
-> ./isaac-sim.streaming.sh \
->   --ext-folder /home/ubuntu/digital_twin/exts --enable robot.monitor \
->   --/exts/omni.kit.livestream.app/primaryStream/publicIp=$HOST_IP \
->   --/exts/omni.kit.livestream.app/primaryStream/signalPort=49100 \
->   --/exts/omni.kit.livestream.app/primaryStream/streamPort=47998
-> ```
-> (확장이 `factory_scene.usda` 를 자동 오픈 → 뷰어들이 로봇 움직임·차트를 함께 본다.)
+> **UI 패널이 스트림에 보이는 이유**: 스트리밍 앱은 `hideUi=false` 라 뷰포트뿐 아니라 omni.ui 창까지
+> 화면에 그린다. WebRTC 는 GPU 렌더 프레임을 통째로 인코딩하므로, "Robot Telemetry Monitor" 패널이
+> 뷰어 화면에 그대로 나오고 체크박스·콤보박스도 원격에서 조작된다.
+> (검증: 로컬 Isaac Sim 5.1.0 에서 확장 로드·씬 자동 오픈·49100 리슨 실측 완료.)
+
+> IoT 라이브 데이터까지 흐르게 하려면 `WORKSHOP_LIVE_DATA.md` 의 `factory_simulator.py` 를 별도 터미널에서 돌린다.
 
 ---
 
-## STEP 3. 뷰어로 접속하기 — 두 가지 방법
+## STEP 3. 참가자 노트북에 네이티브 클라이언트 설치
 
-### 옵션 A. 네이티브 WebRTC 클라이언트 (권장, 설치 필요·안정적)
+각 참가자는 **Isaac Sim WebRTC Streaming Client** 데스크톱 앱을 받는다.
+NVIDIA Isaac Sim 다운로드 페이지의 **"Latest Release"** 섹션에서 자기 OS 패키지를 내려받는다.
+(문서: Isaac Sim → Download → *Isaac Sim WebRTC Streaming Client*)
 
-각 참가자 **노트북**에 **Isaac Sim WebRTC Streaming Client** 를 설치한다(Windows/macOS/Linux).
-NVIDIA 다운로드 페이지에서 받아 압축 해제 후 실행.
+- **Windows**: 설치 파일 실행 후 앱 실행.
+- **macOS**: `.dmg` 열고 **Isaac Sim WebRTC Streaming Client** 를 **Applications** 로 드래그.
+- **Linux(Ubuntu)**:
+  ```bash
+  sudo dpkg -i ./isaacsim-webrtc-streaming-client-*-linux-*.deb
+  ```
 
-1. 앱 실행 → **Server** 입력란에 스트리밍 호스트 공인 IP 입력:
-   ```
-   <StreamHostPublicIp>          # 예: 3.35.x.x
-   ```
-   (포트 기본 49100 그대로. 로컬 테스트면 127.0.0.1)
-2. **Connect** → 잠시 후 트윈 화면이 뜬다.
-3. 뷰어는 화면을 **볼 수만** 있다(카메라 조작 정도). 씬 편집은 호스트에서.
-
-추가 포트 불필요 — 49100/TCP + 47998/UDP 만 열려 있으면 된다.
-
-### 옵션 B. 브라우저 웹 뷰어 (설치 불필요, 단 Docker Compose 필요)
-
-브라우저(Chromium 계열)로 `http://<IP>:8210` 에 접속하는 방식.
-단, **이 웹 뷰어는 Docker Compose 배포 경로에서만 제공**된다.
-마켓플레이스 AMI 의 네이티브 설치(`/opt/IsaacSim`)에는 웹 페이지가 포함돼 있지 않으므로,
-호스트에서 **스트리밍용 컨테이너**를 따로 받아 `--network=host` 로 띄워야 한다.
-
-개요(호스트에서):
-```bash
-# 1) NGC 에서 Isaac Sim 컨테이너 pull (NGC 로그인 필요)
-docker login nvcr.io      # Username: $oauthtoken / Password: NGC API 키
-docker pull nvcr.io/nvidia/isaac-sim:5.1.0
-
-# 2) 웹 뷰어 포함 Docker Compose 스택으로 기동 (반드시 --network=host)
-#    compose 파일은 NGC/Isaac Sim 문서의 "WebRTC Streaming Client (Docker Compose)" 참고.
-#    기동 후 로그의 web-viewer URL 확인:
-docker compose logs web-viewer | grep -i http
-```
-그 뒤 브라우저에서 `http://<StreamHostPublicIp>:8210` 접속.
-
-> 워크샵에서는 **옵션 A(네이티브)** 를 권장한다. 브라우저 방식은 컨테이너를 별도로 받아야 해
-> 준비 시간이 길고 GPU 컨테이너 런타임 설정이 추가로 필요하다.
+> 클라이언트와 서버 버전이 반드시 같을 필요는 없지만, 워크샵은 **Isaac Sim 5.1 기준**이므로
+> 가급적 최신(또는 5.x) 클라이언트를 쓰면 무난하다.
 
 ---
 
-## STEP 4. 확인 포인트
+## STEP 4. 접속하기
+
+1. **Isaac Sim WebRTC Streaming Client** 앱 실행.
+2. 서버 IP 입력란에 스트리밍 호스트 주소 입력:
+   ```
+   <HOST_IP>          # 예: 3.35.x.x   (로컬 테스트면 기본값 127.0.0.1)
+   ```
+   > 포트는 앱에서 입력하지 않는다 — 서버 쪽 49100/47998 설정으로 처리된다.
+3. **Connect** 클릭. 연결에 몇 초 걸릴 수 있다.
+4. 트윈 화면이 뜨면 **마우스로 카메라 회전·로봇 클릭**, 키보드 단축키(예 **F7** 뷰포트 최대화)가 동작한다.
+
+여러 명이 **동시에** 같은 호스트에 붙을 수 있다(각자 세션).
+
+---
+
+## STEP 5. 확인 포인트
 
 1. 호스트 로그에 `Streaming server started.` + `... Streaming App is loaded.`
-2. 뷰어 클라이언트가 **Connect** 후 트윈 화면 표시.
-3. (트윈 씬을 붙였다면) 로봇 4종이 움직이고 차트가 갱신되는 게 뷰어에도 그대로 보인다.
-4. 여러 명이 **동시에** 같은 호스트에 붙어도 각자 화면이 뜬다.
+2. 클라이언트가 **Connect** 후 트윈 화면 표시.
+3. 뷰포트에서 **마우스 드래그로 카메라가 돌고**, 로봇을 클릭하면 "Robot Telemetry Monitor" 패널이 그 로봇으로 전환.
+4. (라이브 데이터 연결 시) 로봇 4종이 움직이고 차트가 5초마다 갱신.
 
 ---
 
-## STEP 5. 정리
+## STEP 6. 정리
 
 - 호스트: 스트리밍 터미널에서 **Ctrl+C**.
-- 인프라 전체 삭제(과금 방지): `npx cdk destroy`.
-- 임시로 포트만 닫고 싶으면, SG 에서 49100/47998 인그레스만 제거 후 재배포.
+- 인프라 전체 삭제(과금 방지): `cdk-omniverse` 에서 `npx cdk destroy`.
+- 임시로 포트만 닫으려면 SG 에서 49100/47998 인그레스 제거 후 재배포.
 
 ---
 
@@ -158,11 +149,41 @@ docker compose logs web-viewer | grep -i http
 
 | 증상 | 해결 |
 |------|------|
-| 뷰어 Connect 됐는데 **검은 화면** | UDP **47998** 이 막힘. SG·회사방화벽에서 UDP 허용 확인(TCP만으론 영상 안 옴). |
+| Connect 됐는데 **검은 화면** | UDP **47998** 이 막힘. SG·회사방화벽에서 UDP 허용 확인(TCP만으론 영상 안 옴). |
 | `Connect` 자체가 안 됨 | TCP **49100** + `allowCidr` 에 내 IP 포함됐는지. `publicIp=` 를 호스트 공인 IP로 줬는지. |
-| 영상은 뜨는데 **인코딩 에러/크래시** | GPU 가 NVENC 지원하는지(=`g6e` OK, A100 ✗). 인스턴스 타입 확인. |
-| 씬이 비어있음 | 트윈을 보려면 STEP 2 의 `--ext-folder ... --enable robot.monitor` 붙여 실행. |
-| 브라우저 8210 접속 안 됨 | 옵션 B 는 Docker Compose 전용. 네이티브 설치엔 웹페이지 없음 → 옵션 A 사용. |
+| 영상 뜨는데 **인코딩 에러/크래시** | GPU 가 NVENC 지원하는지(`g6e` OK, A100 ✗). 인스턴스 타입 확인. |
+| 씬이 비어있음 | STEP 2 의 `--ext-folder ... --enable robot.monitor` 붙여 실행했는지. |
+| 자동 씬 오픈 안 됨 | 확장이 `/home/ubuntu/digital_twin/iot/factory_scene.usda` 를 찾는다. 경로 존재 확인. |
 | 여러 명 붙으니 끊김 | 호스트 GPU/네트워크 대역 한계. 뷰어 수를 줄이거나 호스트 인스턴스 상향. |
+| Windows 방화벽 경고 | 클라이언트 앱의 네트워크 접근 허용. |
+
+---
+
+## 부록. 브라우저 웹 뷰어 (설치 불필요, 단 Docker Compose 필요)
+
+앱 설치 없이 **Chromium 브라우저**로 `http://<HOST_IP>:8210` 접속하는 방식도 있다.
+단, 이 웹 뷰어는 **IsaacSim GitHub 레포의 `tools/docker/docker-compose.yml`** 로만 구동되며
+(마켓플레이스 AMI 네이티브 설치엔 웹페이지 없음 — 확인됨), 호스트에서 컨테이너를 따로 띄워야 한다.
+
+개요(호스트, Ubuntu 전용):
+```bash
+git clone --depth 1 https://github.com/isaac-sim/IsaacSim.git && cd IsaacSim
+docker login nvcr.io                                   # $oauthtoken / NGC API 키
+ISAACSIM_HOST=$HOST_IP ISAAC_SIM_IMAGE=nvcr.io/nvidia/isaac-sim:5.1.0 \
+  docker compose -p isim -f tools/docker/docker-compose.yml up -d
+docker compose -p isim -f tools/docker/docker-compose.yml logs web-viewer | grep -i http
+```
+그 뒤 브라우저에서 `http://<HOST_IP>:8210`. SG 에 **8210/TCP** 추가 필요.
+
+주의:
+- 트윈 씬/확장을 넣으려면 `isaac-sim` 서비스에 `/home/ubuntu/digital_twin` 을 bind mount 하고
+  스트리밍 실행 인자에 `--ext-folder ... --enable robot.monitor` 를 지정해야 한다.
+- 문서 예시 이미지는 `isaac-sim:6.0.1` 이지만 워크샵 씬은 5.1 기준 → **5.1.0 으로 고정** 권장.
+- 클립보드 붙여넣기는 HTTP(비보안)에선 브라우저가 차단(Chrome 플래그 필요).
+- **이 브라우저 경로는 EC2 실환경에서 미검증** — 필요하면 워크샵 전 리허설로 확인할 것.
+
+워크샵 기본은 **네이티브 클라이언트**(위 STEP 1~4)를 권장한다: 버전 정합성·컨테이너 준비 부담이 없다.
+
+---
 
 상세 인프라·포트는 `cdk-omniverse/README.md`, 트윈 씬·확장은 `WORKSHOP_LIVE_DATA.md` 참고.

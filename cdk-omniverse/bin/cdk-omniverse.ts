@@ -10,7 +10,16 @@ const clientCount = Number(app.node.tryGetContext('clientCount') ?? 3);
 const clientInstanceType = app.node.tryGetContext('clientInstanceType') ?? 'g6e.2xlarge';
 const nucleusInstanceType = app.node.tryGetContext('nucleusInstanceType') ?? 'm7i.xlarge';
 const keyName = app.node.tryGetContext('keyName'); // 필수: 기존 EC2 키페어 이름
-const allowCidr = app.node.tryGetContext('allowCidr') ?? '0.0.0.0/0'; // DCV/SSH 허용 IP (반드시 좁힐 것)
+// allowCidr: DCV(8443)/SSH(22)/WebRTC(49100·47998)/브라우저뷰어(8210) 허용 IP.
+// 보안상 반드시 '내 공인 IP/32' 로 좁힌다. 미지정이거나 0.0.0.0/0(전체 개방)이면 배포를 막는다.
+//   예:  -c allowCidr=$(curl -s https://checkip.amazonaws.com)/32
+const allowCidr = app.node.tryGetContext('allowCidr');
+if (!allowCidr || allowCidr === '0.0.0.0/0') {
+  throw new Error(
+    "context 'allowCidr' 가 필요합니다 (전체 개방 금지). 본인 공인 IP 로 좁혀 지정하세요: " +
+    '-c allowCidr=$(curl -s https://checkip.amazonaws.com)/32',
+  );
+}
 // NGC API 키는 -c 가 아니라 배포 시 CFN Parameter 로 입력:
 //   cdk deploy --parameters NgcApiKey=nvapi-...
 
