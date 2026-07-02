@@ -110,10 +110,23 @@ def apply_motion_xyh(stage, prim_path: str, x: float, y: float, heading: float, 
         return False
     xform = UsdGeom.Xformable(prim)
     ops = {op.GetOpName(): op for op in xform.GetOrderedXformOps()}
-    t_op = ops.get("xformOp:translate") or xform.AddTranslateOp()
+    # 기존 translate/rotateZ 가 있으면 재사용, 없으면 1회만 추가한다.
+    # (매 프레임 Add* 를 부르면 op 가 중복 추가돼 "too many rotation ops" /
+    #  순서가 꼬여 "translation applied before rotation" 경고가 난다.)
+    t_op = ops.get("xformOp:translate")
+    if t_op is None:
+        t_op = xform.AddTranslateOp()
+    r_op = ops.get("xformOp:rotateZ")
+    if r_op is None:
+        r_op = xform.AddRotateZOp()
     t_op.Set(Gf.Vec3d(float(x), float(y), float(z)))
-    r_op = ops.get("xformOp:rotateZ") or xform.AddRotateZOp()
     r_op.Set(float(heading))
+    # 우리가 쓰는 두 op 의 순서를 translate→rotateZ 로 고정.
+    # 기존에 orient/transform 등 다른 회전 op 가 섞여 순서 경고가 나던 것을 방지.
+    desired = ["xformOp:translate", "xformOp:rotateZ"]
+    current = [op.GetOpName() for op in xform.GetOrderedXformOps()]
+    if current != desired:
+        xform.SetXformOpOrder([t_op, r_op])
     return True
 
 
