@@ -124,7 +124,18 @@ sleep 8; aws kinesis get-records --region ap-northeast-2 --shard-iterator "$SHAR
   --ext-folder /home/ubuntu/digital_twin/exts \
   --enable robot.monitor
 ```
-- 첫 기동은 셰이더 컴파일로 4~8분. 검은 창이어도 정상.
+
+> **다중 사용자(student) 환경**에서는 위처럼 직접 실행하지 말고 **`launch-isaac`** 을 쓴다.
+> Isaac Sim 은 HTTP 서비스 포트(8011)를 인스턴스 전체에서 공유하므로, 여러 명이 동시에 기본
+> 포트로 띄우면 `address already in use` 로 죽는다. `launch-isaac` 이 uid 로 포트를 자동 분리한다
+> (student1→8001 … student8→8008). 확장까지 얹으려면 인자를 그대로 넘길 수 있다:
+> ```bash
+> launch-isaac --ext-folder ~/digital_twin/exts --enable robot.monitor
+> ```
+> (CDK 배포 클라이언트에 자동 설치됨. 수동 등가: `./isaac-sim.sh --/exts/omni.services.transport.server.http/port=$((8000+$(id -u)-1000))`)
+
+- 첫 기동은 셰이더 컴파일로 4~8분. 검은 창이어도 정상. 우측 하단 진행바가 100% 되면 화면이 뜬다.
+  (여러 명이 동시에 처음 열면 셰이더 컴파일 경합으로 더 느릴 수 있다.)
 - 확장이 켜지면 스테이지가 비었을 때 PoC 씬을 자동으로 연다.
   4종 공장 씬을 쓰려면 Isaac Sim 에서 **File → Open**:
   ```

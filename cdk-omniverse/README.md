@@ -123,9 +123,20 @@ npx cdk deploy -c keyName=omni-seoul -c isaacAmiId=ami-xxx -c allowCidr=<IP>/32 
 3. **GPU Xorg 를 `:0` 에 정렬** — DCV-GL 이 GL 을 `:0` 의 3D X 서버로 오프로드하므로 필수.
    안 하면 `llvmpipe`(SW 렌더)로 폴백돼 Isaac Sim 불가. `dcvgldiag` 로 검증.
 4. **student1..studentCount 계정 + virtual 세션 생성**.
+5. **nice-dcv-gl + epiphany(브라우저) 설치**, `/usr/local/bin/launch-isaac` 런처 배치.
 
 → 참가자는 각자 `https://<클라이언트PublicIP>:8443` 에 **`studentN` / 공통 비밀번호**로 로그인하면
 자기 virtual 세션에서 GPU 가속으로 디지털 트윈 씬을 본다. (한 계정에 한 명씩; 홈/D-Bus 충돌 방지)
+
+**Isaac Sim 실행 (다중 사용자 필수):** 각 student 는 세션 터미널에서 `isaac-sim.sh` 를 직접 부르지 말고
+**`launch-isaac`** 을 실행한다. Isaac Sim 은 HTTP 서비스 포트(8011)를 인스턴스 전체에서 공유하므로
+여러 명이 동시에 기본 포트로 띄우면 `address already in use` 로 죽는다. 런처가 uid 기준으로 포트를
+자동 분리한다(student1→8001 … student8→8008):
+```bash
+launch-isaac          # = ./isaac-sim.sh --/exts/omni.services.transport.server.http/port=<800N>
+```
+**Nucleus Navigator** 는 각자 `epiphany http://<Nucleus사설IP>:8080` 로 연다 (AMI 의 snap firefox 는
+virtual 세션에서 안 뜸 → deb 브라우저 epiphany 를 자동 설치해 둠).
 
 ## 배포 후
 
