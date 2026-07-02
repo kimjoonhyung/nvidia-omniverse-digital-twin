@@ -30,16 +30,25 @@
 
 ---
 
-## 2. 데이터 생성기 실행 (로컬)
+## 2. 데이터 생성기 실행 (발행기)
+
+발행기는 `awsiotsdk`(awscrt+awsiot) 가 필요하고, IoT Core 인증에 `iot/certs/` 의 디바이스 인증서를
+쓴다. 시스템 python 은 PEP668 로 pip 설치가 막혀 있어 **venv** 를 쓴다. 셋업 스크립트가 한 번에 처리:
 
 ```bash
-cd ~/digital_twin/iot
-export IOT_ENDPOINT=$(aws iot describe-endpoint --region ap-northeast-2 \
-  --endpoint-type iot:Data-ATS --query endpointAddress --output text)
-python3 -u robot_simulator.py --interval 5        # Nova Carter 1대, 5초 간격
-python3 -u robot_simulator.py --robots 3 --interval 5   # 3대
+cd ~/digital_twin/iot          # (워크샵 클라이언트에선 ~/nvidia-omniverse-digital-twin/iot)
+bash setup_publisher.sh        # venv 생성 + awsiotsdk 설치 + IOT_ENDPOINT 조회/캐시 (멱등, 1회)
 ```
-- `-u` (unbuffered) 권장: 출력이 바로 보임.
+> `setup_publisher.sh` 없이 수동으로 하려면: `python3 -m venv ~/venv && ~/venv/bin/pip install -r requirements.txt`
+> (venv 생성 실패 시 `sudo apt-get install -y python3-venv`). 발행기엔 `iot/certs/` 인증서가 있어야 한다.
+
+실행 (venv 파이썬 사용):
+```bash
+IOT_ENDPOINT=$(cat ~/.iot_endpoint) ~/venv/bin/python -u robot_simulator.py --interval 5      # 1대, 5초 간격
+IOT_ENDPOINT=$(cat ~/.iot_endpoint) ~/venv/bin/python -u robot_simulator.py --robots 3 --interval 5   # 3대
+```
+- 셋업이 `~/.bashrc` 에 `IOT_ENDPOINT` 를 넣으므로, 새 셸에선 `~/venv/bin/python -u robot_simulator.py ...` 만 해도 된다.
+- `~/venv/bin/python` 을 써야 한다(시스템 `python3` 엔 awsiotsdk 없음). `-u` 는 출력 즉시 표시.
 - 텔레메트리: `battery_pct, motor_temp_c, speed_mps, position(x,y), heading_deg, odometer_m, status, error_count`
 - 상태 머신: moving(배터리↓·발열↑) → 20%↓ 면 charging → 95%↑ 면 moving.
 
