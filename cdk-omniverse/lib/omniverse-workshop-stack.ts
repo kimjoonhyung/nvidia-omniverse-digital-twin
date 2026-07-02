@@ -14,15 +14,24 @@ export interface OmniverseWorkshopStackProps extends cdk.StackProps {
   nucleusInstanceType: string;
   /** 기존 EC2 키페어 이름 (SSH/DCV 접속용) */
   keyName?: string;
-  /** DCV(8443)·SSH(22) 허용 CIDR. 반드시 본인 IP/32 로 좁힐 것 */
+  /** 관리 접근(DCV 8443·SSH 22) 허용 CIDR. 반드시 본인 IP/32 로 좁힐 것 */
   allowCidr: string;
+  /**
+   * 뷰어(WebRTC 스트리밍) 허용 CIDR — 시그널링 49100·미디어 UDP 47998-48010·브라우저 8210.
+   * 참가자들이 접속하는 IP 대역. 미지정 시 allowCidr 로 폴백.
+   */
+  viewerCidr: string;
 }
+
+/** WebRTC 미디어 UDP 포트 범위 (Isaac Sim 5.1 minHostPort~maxHostPort 와 일치). */
+export const WEBRTC_MEDIA_PORT_MIN = 47998;
+export const WEBRTC_MEDIA_PORT_MAX = 48010;
 
 export class OmniverseWorkshopStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: OmniverseWorkshopStackProps) {
     super(scope, id, props);
 
-    const { clientCount, clientInstanceType, nucleusInstanceType, keyName, allowCidr } = props;
+    const { clientCount, clientInstanceType, nucleusInstanceType, keyName, allowCidr, viewerCidr } = props;
 
     // ---------------------------------------------------------------
     // 0) NGC API 키 — 배포 시 CFN Parameter 로 입력받음 (NoEcho=평문 노출 방지)
@@ -82,16 +91,22 @@ export class OmniverseWorkshopStack extends cdk.Stack {
     const clientSg = new ec2.SecurityGroup(this, 'ClientSg', {
       vpc, description: 'Isaac Sim client - DCV + SSH', allowAllOutbound: true,
     });
+    // 관리 접근(DCV·SSH): allowCidr 에서만.
     clientSg.addIngressRule(ec2.Peer.ipv4(allowCidr), ec2.Port.tcp(8443), 'DCV');
     clientSg.addIngressRule(ec2.Peer.ipv4(allowCidr), ec2.Port.tcp(22), 'SSH');
-    // Isaac Sim WebRTC 라이브스트림 (WORKSHOP_STREAM_VIEWER.md).
-    //  - TCP 49100: 시그널링,  UDP 47998: 미디어(둘 다 필수. TCP만 열면 영상 안 나옴)
-    //    → 네이티브 WebRTC Streaming Client 는 이 둘만 있으면 된다(워크샵 기본).
-    //  - TCP 8210 : (부록) Docker Compose 브라우저 웹 뷰어. 네이티브 방식엔 불필요.
+    // Isaac Sim WebRTC 라이브스트림 (WORKSHOP_STREAM_VIEWER.md): 뷰어(viewerCidr)에서 접속.
+    //  - TCP 49100      : 시그널링
+    //  - UDP 47998-48010: 미디어(둘 다 필수. TCP만 열면 영상 안 나옴).
+    //                     Isaac Sim 5.1 은 minHostPort~maxHostPort 로 이 범위에 미디어 포트를 고정한다.
+    //  - TCP 8210       : (부록) Docker Compose 브라우저 웹 뷰어. 네이티브 방식엔 불필요.
     // 3대 모두 열어두고, 워크샵에서 1대를 스트리밍 호스트로 지정해 쓴다.
-    clientSg.addIngressRule(ec2.Peer.ipv4(allowCidr), ec2.Port.tcp(49100), 'Isaac WebRTC signaling');
-    clientSg.addIngressRule(ec2.Peer.ipv4(allowCidr), ec2.Port.udp(47998), 'Isaac WebRTC media');
-    clientSg.addIngressRule(ec2.Peer.ipv4(allowCidr), ec2.Port.tcp(8210), 'Isaac WebRTC browser viewer (Docker Compose, appendix)');
+    clientSg.addIngressRule(ec2.Peer.ipv4(viewerCidr), ec2.Port.tcp(49100), 'Isaac WebRTC signaling');
+    clientSg.addIngressRule(
+      ec2.Peer.ipv4(viewerCidr),
+      ec2.Port.udpRange(WEBRTC_MEDIA_PORT_MIN, WEBRTC_MEDIA_PORT_MAX),
+      'Isaac WebRTC media',
+    );
+    clientSg.addIngressRule(ec2.Peer.ipv4(viewerCidr), ec2.Port.tcp(8210), 'Isaac WebRTC browser viewer (Docker Compose, appendix)');
 
     const nucleusSg = new ec2.SecurityGroup(this, 'NucleusSg', {
       vpc, description: 'Nucleus server', allowAllOutbound: true,

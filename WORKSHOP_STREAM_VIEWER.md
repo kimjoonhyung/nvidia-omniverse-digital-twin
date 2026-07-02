@@ -36,18 +36,28 @@ npx cdk deploy \
   -c keyName=<키페어명> \
   -c isaacAmiId=<Isaac Sim AMI> \
   -c allowCidr=$(curl -s https://checkip.amazonaws.com)/32 \
+  -c viewerCidr=15.0.0.0/8 \
   -c clientCount=3 \
   --parameters NgcApiKey=nvapi-xxxx \
   --parameters UbuntuPassword=<DCV 비밀번호>
 ```
 
-열리는 포트(클라이언트 SG, `allowCidr` 한정):
-| 포트 | 프로토콜 | 용도 |
-|------|----------|------|
-| 8443 | TCP | DCV 원격데스크톱 (기존) |
-| 22 | TCP | SSH (기존) |
-| **49100** | **TCP** | **WebRTC 시그널링** |
-| **47998** | **UDP** | **WebRTC 미디어** — TCP만 열면 영상이 안 나온다 |
+- **`allowCidr`**: 관리 접근(DCV·SSH) 허용 IP — 강사/관리자 IP `/32`. (필수)
+- **`viewerCidr`**: 뷰어(WebRTC 접속) 허용 대역 — 참가자들이 접속하는 IP 대역.
+  미지정 시 `allowCidr` 로 폴백(혼자 테스트할 때). `0.0.0.0/0` 은 금지.
+
+열리는 포트(클라이언트 SG):
+| 포트 | 프로토콜 | 소스 | 용도 |
+|------|----------|------|------|
+| 8443 | TCP | `allowCidr` | DCV 원격데스크톱 |
+| 22 | TCP | `allowCidr` | SSH |
+| **49100** | **TCP** | `viewerCidr` | **WebRTC 시그널링** |
+| **47998-48010** | **UDP** | `viewerCidr` | **WebRTC 미디어** — TCP만 열면 영상이 안 나온다 |
+| 8210 | TCP | `viewerCidr` | (부록) 브라우저 웹 뷰어 |
+
+> ⚠️ **미디어 UDP 는 범위(47998-48010)** 로 연다. Isaac Sim 5.1 은 미디어 포트를
+> `minHostPort~maxHostPort` 로 이 범위에 고정하며(STEP 2), 그래야 SG 를 좁게 열 수 있다.
+> (기본 WebRTC 는 임의 UDP 포트를 동적 할당해 SG 로 못 막는다.)
 
 배포 후 `Outputs` 의 **`StreamHostPublicIp`** 가 스트리밍 호스트로 쓸 클라이언트(#3)의 공인 IP다.
 아래에서 이 값을 `HOST_IP` 로 쓴다.
@@ -75,21 +85,29 @@ Isaac Sim 설치 경로는 마켓플레이스 AMI 기준 `/opt/IsaacSim`.
 cd /opt/IsaacSim
 ./isaac-sim.streaming.sh \
   --ext-folder /home/ubuntu/digital_twin/exts --enable robot.monitor \
-  --/exts/omni.kit.livestream.app/primaryStream/publicIp=$HOST_IP \
-  --/exts/omni.kit.livestream.app/primaryStream/signalPort=49100 \
-  --/exts/omni.kit.livestream.app/primaryStream/streamPort=47998
+  --/app/livestream/publicEndpointAddress=$HOST_IP \
+  --/app/livestream/minHostPort=47998 \
+  --/app/livestream/maxHostPort=48010
 ```
-- 첫 기동은 셰이더 컴파일로 수 분. 로그에 **`Streaming server started.`** 와
-  **`Isaac Sim Full Streaming App is loaded.`** 가 뜨면 준비 완료.
+- 첫 기동은 셰이더 컴파일로 수 분(최초는 10분 이상 걸리기도 한다). 로그에 **`Streaming server started.`** 와
+  **`Isaac Sim Full Streaming App is loaded.`** 가 **둘 다** 뜬 뒤에 접속할 것(로드 전 접속하면 검은 화면).
 - `robot.monitor` 확장이 **`factory_scene.usda` 를 자동 오픈**한다(기동 후 ~3초 지연).
   "Robot Telemetry Monitor" 패널도 함께 뜬다.
 - 이 창(SSH/터미널)은 **켜둔 채로** 둔다. Ctrl+C 로 중지.
-- `publicIp` 는 **원격(인터넷)에서 볼 때만** 필요. 같은 VPC 내부에서만 볼 거면 생략 가능.
+
+> ⚠️ **설정 키는 Isaac Sim 5.1 기준이다** (실측 확인). 공식 문서의
+> `--/exts/omni.kit.livestream.app/primaryStream/publicIp=...` 형태는 **6.0 네임스페이스라 5.1 에선 무시**된다.
+> 5.1 은 `/app/livestream/` 네임스페이스를 쓴다:
+> - `publicEndpointAddress=<공인IP>` — **NAT/공인망 접속 시 필수**. 없으면 서버가 사설 IP(10.x)만 광고해
+>   뷰어가 미디어를 못 받아 **검은 화면**이 된다.
+> - `minHostPort`/`maxHostPort` — 미디어 UDP 포트를 이 범위로 고정(SG 의 47998-48010 과 일치).
+> - 시그널 포트(49100)는 확장 기본값이라 별도 지정 불필요.
 
 > **UI 패널이 스트림에 보이는 이유**: 스트리밍 앱은 `hideUi=false` 라 뷰포트뿐 아니라 omni.ui 창까지
 > 화면에 그린다. WebRTC 는 GPU 렌더 프레임을 통째로 인코딩하므로, "Robot Telemetry Monitor" 패널이
 > 뷰어 화면에 그대로 나오고 체크박스·콤보박스도 원격에서 조작된다.
-> (검증: 로컬 Isaac Sim 5.1.0 에서 확장 로드·씬 자동 오픈·49100 리슨 실측 완료.)
+> (검증: EC2 g6e(L40S) 배포 클라이언트에서 확장 로드·씬 자동 오픈 + 노트북 네이티브 클라이언트
+> 원격 접속·조작까지 실측 성공.)
 
 > IoT 라이브 데이터까지 흐르게 하려면 `WORKSHOP_LIVE_DATA.md` 의 `factory_simulator.py` 를 별도 터미널에서 돌린다.
 
@@ -149,8 +167,9 @@ NVIDIA Isaac Sim 다운로드 페이지의 **"Latest Release"** 섹션에서 자
 
 | 증상 | 해결 |
 |------|------|
-| Connect 됐는데 **검은 화면** | UDP **47998** 이 막힘. SG·회사방화벽에서 UDP 허용 확인(TCP만으론 영상 안 옴). |
-| `Connect` 자체가 안 됨 | TCP **49100** + `allowCidr` 에 내 IP 포함됐는지. `publicIp=` 를 호스트 공인 IP로 줬는지. |
+| Connect 됐는데 **검은 화면** (제일 흔함) | ① `publicEndpointAddress=$HOST_IP` 를 줬는지(없으면 서버가 사설IP만 광고 → 미디어 실패). ② 미디어 UDP 47998-48010 이 `viewerCidr` 에 열렸는지. ③ 앱이 `App is loaded` 뜬 뒤 접속했는지. |
+| `Connect` 자체가 안 됨 | TCP **49100** + `viewerCidr` 에 내 IP 포함됐는지 확인. |
+| 검은 화면 지속 시 실제 포트 확인 | 호스트에서 연결 중 `sudo ss -aunp \| grep kit` → 실제 미디어 UDP 포트가 47998-48010 밖이면 min/maxHostPort 재확인. |
 | 영상 뜨는데 **인코딩 에러/크래시** | GPU 가 NVENC 지원하는지(`g6e` OK, A100 ✗). 인스턴스 타입 확인. |
 | 씬이 비어있음 | STEP 2 의 `--ext-folder ... --enable robot.monitor` 붙여 실행했는지. |
 | 자동 씬 오픈 안 됨 | 확장이 `/home/ubuntu/digital_twin/iot/factory_scene.usda` 를 찾는다. 경로 존재 확인. |
