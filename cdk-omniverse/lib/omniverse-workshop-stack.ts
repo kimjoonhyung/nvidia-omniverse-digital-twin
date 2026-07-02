@@ -4,10 +4,13 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { buildNucleusUserData } from './nucleus-userdata';
+import { buildClientUserData } from './client-userdata';
 
 export interface OmniverseWorkshopStackProps extends cdk.StackProps {
   /** Isaac Sim 클라이언트 대수 (기본 3) */
   clientCount: number;
+  /** 클라이언트 1대당 DCV virtual 세션(=동시 접속 참가자) 수 (기본 8) */
+  studentCount: number;
   /** 클라이언트 인스턴스 타입 (GPU 필요, 기본 g6e.2xlarge) */
   clientInstanceType: string;
   /** Nucleus 서버 타입 (GPU 불필요, 기본 m7i.xlarge) */
@@ -31,7 +34,7 @@ export class OmniverseWorkshopStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: OmniverseWorkshopStackProps) {
     super(scope, id, props);
 
-    const { clientCount, clientInstanceType, nucleusInstanceType, keyName, allowCidr, viewerCidr } = props;
+    const { clientCount, studentCount, clientInstanceType, nucleusInstanceType, keyName, allowCidr, viewerCidr } = props;
 
     // ---------------------------------------------------------------
     // 0) NGC API 키 — 배포 시 CFN Parameter 로 입력받음 (NoEcho=평문 노출 방지)
@@ -63,6 +66,19 @@ export class OmniverseWorkshopStack extends cdk.Stack {
       description: 'ubuntu 사용자 비밀번호 (DCV 로그인용). 비우면 설정 생략. NoEcho 로 로그/콘솔 노출 안 됨.',
     });
     const ubuntuPassword = ubuntuPasswordParam.valueAsString;
+
+    // ---------------------------------------------------------------
+    // 0-3) 참가자(student1..N) 공통 DCV 로그인 비밀번호 — 배포 시 입력 (NoEcho).
+    //      클라이언트 user-data 가 부팅 시 studentN 계정에 동일 적용.
+    //      비우면 인스턴스에서 랜덤 생성 → /opt/dcv-multiuser/CREDENTIALS.txt 에 기록.
+    // ---------------------------------------------------------------
+    const studentPasswordParam = new cdk.CfnParameter(this, 'StudentPassword', {
+      type: 'String',
+      noEcho: true,
+      default: '',
+      description: 'student1..N 공통 DCV 로그인 비밀번호. 비우면 인스턴스가 랜덤 생성(로그 기록). NoEcho.',
+    });
+    const studentPassword = studentPasswordParam.valueAsString;
 
     // 기존 EC2 키페어를 이름으로 참조 (deprecated keyName 대신 keyPair 사용)
     const keyPair = keyName
@@ -191,15 +207,11 @@ export class OmniverseWorkshopStack extends cdk.Stack {
     // ---------------------------------------------------------------
     // 6) Isaac Sim 클라이언트 N대 (개수 파라미터화)
     // ---------------------------------------------------------------
-    // 클라이언트 user-data: 입력받은 비밀번호가 있으면 ubuntu 계정에 설정.
-    // ${UbuntuPassword} 는 NoEcho 파라미터라 콘솔/이벤트엔 가려지나,
-    // user-data 자체는 평문 저장되므로 PoC 한정. (운영은 SSM/Secrets 권장)
-    const clientUserData = ec2.UserData.forLinux();
-    clientUserData.addCommands(
-      'set -x',
-      `UBUNTU_PW='${ubuntuPassword}'`,
-      'if [ -n "$UBUNTU_PW" ]; then echo "ubuntu:$UBUNTU_PW" | chpasswd; echo "ubuntu password set"; fi',
-    );
+    // 클라이언트 user-data: ubuntu 비밀번호 설정 + DCV virtual 다중세션 자동 구성.
+    //   - nice-xdcv 설치 + GPU Xorg :0 정렬 + student1..N 계정/세션 생성 (client-userdata.ts).
+    //   - GPU 1대에 studentCount 명이 동시에 DCV 로 붙어 디지털 트윈 씬을 GPU 가속으로 본다.
+    // NoEcho 파라미터라 콘솔/이벤트엔 가려지나, user-data 자체는 평문 저장 → PoC 한정.
+    const clientUserData = buildClientUserData({ ubuntuPassword, studentCount, studentPassword });
 
     const clients: ec2.Instance[] = [];
     for (let i = 1; i <= clientCount; i++) {

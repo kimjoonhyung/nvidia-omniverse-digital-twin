@@ -7,6 +7,9 @@ const app = new cdk.App();
 // ---- 파라미터 (cdk.json context 또는 -c 로 오버라이드) ----
 // 예: cdk deploy -c clientCount=5 -c clientInstanceType=g6e.4xlarge
 const clientCount = Number(app.node.tryGetContext('clientCount') ?? 3);
+// studentCount: 클라이언트 1대당 DCV virtual 세션(동시 접속 참가자) 수. GPU 1대 여러 명 공유.
+//   예: -c studentCount=8  (기본 8). L40S 48GB 기준 모니터링 용도 권장치.
+const studentCount = Number(app.node.tryGetContext('studentCount') ?? 8);
 const clientInstanceType = app.node.tryGetContext('clientInstanceType') ?? 'g6e.2xlarge';
 const nucleusInstanceType = app.node.tryGetContext('nucleusInstanceType') ?? 'm7i.xlarge';
 const keyName = app.node.tryGetContext('keyName'); // 필수: 기존 EC2 키페어 이름
@@ -37,6 +40,7 @@ new OmniverseWorkshopStack(app, 'OmniverseWorkshopStack', {
     region: process.env.CDK_DEFAULT_REGION ?? 'ap-northeast-2',
   },
   clientCount,
+  studentCount,
   clientInstanceType,
   nucleusInstanceType,
   keyName,

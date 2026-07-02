@@ -52,7 +52,8 @@ npx cdk deploy \
 **context (`-c key=value`)** — 인프라 형태:
 | 파라미터 | 기본값 | 설명 |
 |----------|--------|------|
-| `clientCount` | 3 | Isaac Sim 클라이언트 대수 |
+| `clientCount` | 3 | Isaac Sim 클라이언트(GPU 인스턴스) 대수 |
+| `studentCount` | 8 | **클라이언트 1대당 동시 접속 참가자 수** = DCV virtual 세션 수. GPU 1대를 여러 명이 공유(모니터링 비용 절감). L40S 48GB 권장치 8 |
 | `clientInstanceType` | g6e.2xlarge | 클라이언트 타입 (GPU 필요) |
 | `nucleusInstanceType` | m7i.xlarge | Nucleus 타입 (GPU 불필요) |
 | `keyName` | (없음) | 기존 EC2 키페어 이름 |
@@ -64,19 +65,38 @@ npx cdk deploy \
 | 파라미터 | 설명 |
 |----------|------|
 | `NgcApiKey` | NGC API 키(`nvapi-...`). NoEcho. 스택이 Secret 생성·삭제 관리 |
-| `UbuntuPassword` | ubuntu 사용자 비밀번호(DCV 로그인용). NoEcho. 클라이언트+Nucleus 전부에 설정. 비우면 생략 |
+| `UbuntuPassword` | ubuntu 사용자 비밀번호(관리자 DCV/SSH). NoEcho. 클라이언트+Nucleus 전부에 설정. 비우면 생략 |
+| `StudentPassword` | **참가자(student1..N) 공통 DCV 비밀번호**. NoEcho. 비우면 인스턴스가 랜덤 생성 → `/opt/dcv-multiuser/CREDENTIALS.txt` 에 기록 |
 
 예:
 ```bash
-npx cdk deploy -c keyName=omni-seoul -c isaacAmiId=ami-xxx -c allowCidr=<IP>/32 -c clientCount=2 \
+npx cdk deploy -c keyName=omni-seoul -c isaacAmiId=ami-xxx -c allowCidr=<IP>/32 \
+  -c clientCount=2 -c studentCount=8 \
   --parameters NgcApiKey=nvapi-xxxx \
-  --parameters UbuntuPassword=원하는비밀번호
+  --parameters UbuntuPassword=관리자비밀번호 \
+  --parameters StudentPassword=참가자공통비밀번호
 ```
+
+### 다중 사용자 접속 (GPU 1대 여러 명)
+
+클라이언트는 부팅 시 user-data(`lib/client-userdata.ts`, systemd `dcv-multiuser`)가 자동으로:
+1. **nice-xdcv 설치** — virtual 세션용 X 서버 (마켓플레이스 AMI 엔 없음).
+2. **console 자동생성 끄기** — console 과 virtual 은 동시 불가.
+3. **GPU Xorg 를 `:0` 에 정렬** — DCV-GL 이 GL 을 `:0` 의 3D X 서버로 오프로드하므로 필수.
+   안 하면 `llvmpipe`(SW 렌더)로 폴백돼 Isaac Sim 불가. `dcvgldiag` 로 검증.
+4. **student1..studentCount 계정 + virtual 세션 생성**.
+
+→ 참가자는 각자 `https://<클라이언트PublicIP>:8443` 에 **`studentN` / 공통 비밀번호**로 로그인하면
+자기 virtual 세션에서 GPU 가속으로 디지털 트윈 씬을 본다. (한 계정에 한 명씩; 홈/D-Bus 충돌 방지)
 
 ## 배포 후
 
 - 출력(Outputs)에 **Nucleus IP, Navigator URL, 클라이언트별 DCV URL** 표시.
-- 각 클라이언트 DCV: `https://<PublicIP>:8443` (ubuntu / DCV 비밀번호는 별도 설정 필요).
+- 각 클라이언트 DCV: `https://<PublicIP>:8443`
+  - 관리자: `ubuntu` / `UbuntuPassword`
+  - 참가자: `student1`..`studentN` / `StudentPassword` (공통). 각자 다른 studentN 으로 로그인.
+- 참가자 비밀번호를 비워서 배포했다면 클라이언트 `/opt/dcv-multiuser/CREDENTIALS.txt` 에서 확인(SSH).
+- 다중세션 설정 로그: 클라이언트 `/var/log/dcv-multiuser.log`, 상태 `systemctl status dcv-multiuser`.
 - Nucleus admin 비밀번호: 서버 `/opt/nucleus/CREDENTIALS.txt` (SSH로 확인).
 - Isaac Sim에서 Nucleus 연결: **Nucleus 사설IP** 사용 (출력 `ConnectNucleusFromIsaac`).
 - Nucleus 자동설치 진행/완료: 서버에 `/opt/nucleus/READY` 파일 생성됨.
