@@ -74,6 +74,7 @@ npx cdk destroy
 | **IOT_MONITORING.md** | **C단계: AWS IoT→Kinesis→Isaac Sim 실시간 데이터 트윈** (차트·로봇 이동·클릭) | 강사/개발 |
 | **WORKSHOP_LIVE_DATA.md** | **핸즈온: 공장 4종 로봇 실시간 데이터 트윈** (STEP 0~6, 복붙 따라하기) | 수강생 |
 | **WORKSHOP_STREAM_VIEWER.md** | **핸즈온: WebRTC 스트리밍 트윈** (클라 1대=스트리밍 호스트, 나머지는 네이티브 클라이언트로 접속·조작. 브라우저 방식은 부록) | 수강생 |
+| **STREAMING_FINDINGS.md** | **실측 노트**: WebRTC 1:1 한계·5.1 설정 키·다중 스트리밍 서버·Nucleus Live·DCV virtual 다중세션(비용 절감) 비교 | 강사/개발 |
 
 > 한국어로 작성. 코드·명령·경로는 원문 유지.
 
