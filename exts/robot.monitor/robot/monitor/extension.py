@@ -53,6 +53,7 @@ class RobotMonitorExtension(omni.ext.IExt):
         self._current_rid = None
         self._prim_by_rid = {}                   # robot_id → prim path
         self._combo_ids = []
+        self._updating_combo = False             # 콤보 재구성 중 _on_robot_changed 콜백 무시용
         self._labels = {}
         self._plots = {}
         self._frame_count = 0
@@ -141,6 +142,9 @@ class RobotMonitorExtension(omni.ext.IExt):
             self._consumer.stop()
 
     def _on_robot_changed(self, model, item):
+        # 콤보를 코드로 재구성하는 중엔 사용자 선택이 아니므로 무시(선택 튐 방지).
+        if self._updating_combo:
+            return
         ids = self._combo_ids
         idx = model.get_item_value_model().as_int
         if 0 <= idx < len(ids):
@@ -312,12 +316,26 @@ class RobotMonitorExtension(omni.ext.IExt):
     def _refresh_robot_list(self, ids):
         if ids == self._combo_ids:
             return
+        # 재구성 전 현재 선택을 기억했다가, 재구성 후 복원한다.
+        # (remove/append 는 선택을 0 으로 리셋하고 _on_robot_changed 를 발화시켜
+        #  _current_rid 가 첫 로봇으로 튀는 버그 방지.)
+        prev = self._current_rid
         self._combo_ids = list(ids)
-        model = self._robot_combo.model
-        for child in list(model.get_item_children()):
-            model.remove_item(child)
-        for rid in ids:
-            model.append_child_item(None, ui.SimpleStringModel(rid))
+        self._updating_combo = True
+        try:
+            model = self._robot_combo.model
+            for child in list(model.get_item_children()):
+                model.remove_item(child)
+            for rid in ids:
+                model.append_child_item(None, ui.SimpleStringModel(rid))
+            # 이전 선택이 여전히 목록에 있으면 그 인덱스로, 아니면 첫 항목 유지.
+            if prev in self._combo_ids:
+                self._current_rid = prev
+                model.get_item_value_model().set_value(self._combo_ids.index(prev))
+            elif self._combo_ids:
+                self._current_rid = self._combo_ids[0]
+        finally:
+            self._updating_combo = False
 
     def _set_val(self, key, text, color):
         self._labels[key].text = text
