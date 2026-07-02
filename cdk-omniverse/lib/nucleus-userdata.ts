@@ -6,6 +6,11 @@ export interface NucleusUserDataProps {
   ngcSecretArn?: string;
   /** ubuntu 사용자 비밀번호 (SSH/콘솔 로그인용). 빈 값이면 설정 생략 */
   ubuntuPassword?: string;
+  /**
+   * Nucleus admin(omniverse) 로그인 비밀번호. 워크샵 참가자가 쓰기 쉽게 고정값 전달.
+   * 빈 값이면 부팅 시 랜덤 생성(기존 동작). 보통 StudentPassword 와 동일하게 준다.
+   */
+  masterPassword?: string;
 }
 
 /**
@@ -19,7 +24,7 @@ export interface NucleusUserDataProps {
  *  - 모든 로그는 /var/log/nucleus-install.log + journald 에 남김.
  */
 export function buildNucleusUserData(props: NucleusUserDataProps): ec2.UserData {
-  const { region, ngcSecretArn } = props;
+  const { region, ngcSecretArn, masterPassword = '' } = props;
   const ud = ec2.UserData.forLinux();
 
   // 설치 스크립트 (멱등 + 견고). systemd 서비스가 실행.
@@ -35,6 +40,8 @@ export function buildNucleusUserData(props: NucleusUserDataProps): ec2.UserData 
       ? `NGC_SECRET_ARN="${ngcSecretArn}"`
       : 'echo "no ngcSecretArn — manual install required"; exit 0',
     'REGION="' + region + '"',
+    // 워크샵용 고정 Nucleus admin 비번(보통 StudentPassword 와 동일). 빈 값이면 랜덤 생성.
+    `MASTER_PW_FIXED='${masterPassword}'`,
     '',
     'export DEBIAN_FRONTEND=noninteractive',
     'apt-get update -y || true',
@@ -86,7 +93,8 @@ export function buildNucleusUserData(props: NucleusUserDataProps): ec2.UserData 
     '  [ -z "$PRIV_IP" ] && PRIV_IP=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)',
     '  [ -z "$PRIV_IP" ] && PRIV_IP=$(hostname -I | awk "{print \\$1}")',
     '  if [ -z "$PRIV_IP" ]; then echo "FATAL: cannot determine private IP; retry"; exit 1; fi',
-    '  MASTER_PW=$(openssl rand -base64 18 | tr -d "/+=" | head -c 20)',
+    '  # admin 비번: 고정값(워크샵용) 있으면 사용, 없으면 랜덤. SERVICE_PW 는 항상 랜덤(내부용).',
+    '  if [ -n "$MASTER_PW_FIXED" ]; then MASTER_PW="$MASTER_PW_FIXED"; else MASTER_PW=$(openssl rand -base64 18 | tr -d "/+=" | head -c 20); fi',
     '  SERVICE_PW=$(openssl rand -base64 18 | tr -d "/+=" | head -c 20)',
     '  sed -i "s/^ACCEPT_EULA=.*/ACCEPT_EULA=1/" nucleus-stack.env',
     '  sed -i "s/^SECURITY_REVIEWED=.*/SECURITY_REVIEWED=1/" nucleus-stack.env',

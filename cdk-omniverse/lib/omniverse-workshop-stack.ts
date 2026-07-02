@@ -199,7 +199,9 @@ export class OmniverseWorkshopStack extends cdk.Stack {
         deviceName: '/dev/sda1',
         volume: ec2.BlockDeviceVolume.ebs(200, { volumeType: ec2.EbsDeviceVolumeType.GP3 }),
       }],
-      userData: buildNucleusUserData({ region: this.region, ngcSecretArn, ubuntuPassword }),
+      // Nucleus admin(omniverse) 비번을 StudentPassword 와 동일하게 → 참가자가 외우기 쉽게.
+      //   (빈 값이면 nucleus-userdata 가 랜덤 생성 후 CREDENTIALS.txt 에 기록)
+      userData: buildNucleusUserData({ region: this.region, ngcSecretArn, ubuntuPassword, masterPassword: studentPassword }),
     });
     cdk.Tags.of(nucleus).add('Name', 'omniverse-nucleus');
     cdk.Tags.of(nucleus).add('Role', 'nucleus');
