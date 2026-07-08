@@ -160,7 +160,7 @@ npx cdk destroy
 
 - **마켓플레이스 AMI**는 구독 동의가 선행돼야 하고 AMI ID가 리전·버전마다 다름 → `isaacAmiId` 필수.
 - 마켓플레이스 AMI 스냅샷이 **>=512GB**를 요구 → 클라이언트 루트 볼륨 512GB로 고정.
-- user-data Nucleus 설치는 **no-SSL PoC**. 운영은 SSL·SSO·시크릿 강화 필요(`../NUCLEUS_DEPLOY.md`).
+- user-data Nucleus 설치는 **no-SSL PoC**. 운영은 SSL·SSO·시크릿 강화 필요(`../docs/nucleus-수동배포.md`).
 - DCV 로그인용 ubuntu 비밀번호는 AMI 기본값/수동 설정 필요(보안상 CDK에 넣지 않음).
 - PoC는 퍼블릭 서브넷. 운영은 private 서브넷 + NAT + 부하분산 고려.
 
