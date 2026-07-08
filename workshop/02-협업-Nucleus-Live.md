@@ -14,10 +14,20 @@
 Nucleus는 여러 Isaac Sim이 **하나의 USD 씬을 공유**하게 해주는 협업 서버입니다.
 Live 모드를 켜면 한 사람의 편집이 다른 모두의 화면에 **즉시** 반영됩니다.
 
-```
-[내 Isaac Sim]    ┐
-[동료 Isaac Sim]  ┼──▶ [Nucleus 서버: 공유 USD]  ◀── Live 동기화 (실시간)
-[또 다른 Isaac Sim]┘
+```mermaid
+flowchart LR
+    A["내 Isaac Sim"]
+    B["동료 Isaac Sim"]
+    C["또 다른 Isaac Sim"]
+    N(["Nucleus 서버<br/>공유 USD 씬"])
+    A <-->|"Live 동기화"| N
+    B <-->|"Live 동기화"| N
+    C <-->|"Live 동기화"| N
+
+    classDef sim fill:#e8f0fe,stroke:#4285f4,color:#111;
+    classDef srv fill:#e6f4ea,stroke:#34a853,color:#111;
+    class A,B,C sim;
+    class N srv;
 ```
 
 ---
