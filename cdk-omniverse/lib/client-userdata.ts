@@ -15,7 +15,7 @@ export interface ClientUserDataProps {
  * 목적: GPU 1대(마켓플레이스 AMI)에 여러 명이 DCV virtual 세션으로 동시 접속해
  *       디지털 트윈 씬을 각자 GPU 가속으로 보게 한다 (모니터링 비용 절감).
  *
- * ★ 실측으로 확인한 두 가지 필수 조건 (STREAMING_FINDINGS.md / 검증 기록 참조):
+ * ★ 실측으로 확인한 두 가지 필수 조건 (docs/스트리밍-실측노트.md / 검증 기록 참조):
  *   1. nice-xdcv 설치 — virtual 세션의 X 서버(Xdcv). 마켓플레이스 AMI 에는 없어서
  *      설치 안 하면 세션이 생성 즉시 죽는다("Cannot launch Xdcv: not executable").
  *   2. GPU Xorg 가 DISPLAY=:0 을 점유 — DCV-GL 은 GL 호출을 ":0 의 3D X 서버"로

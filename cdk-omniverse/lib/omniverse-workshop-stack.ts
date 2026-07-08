@@ -110,7 +110,7 @@ export class OmniverseWorkshopStack extends cdk.Stack {
     // 관리 접근(DCV·SSH): allowCidr 에서만.
     clientSg.addIngressRule(ec2.Peer.ipv4(allowCidr), ec2.Port.tcp(8443), 'DCV');
     clientSg.addIngressRule(ec2.Peer.ipv4(allowCidr), ec2.Port.tcp(22), 'SSH');
-    // Isaac Sim WebRTC 라이브스트림 (WORKSHOP_STREAM_VIEWER.md): 뷰어(viewerCidr)에서 접속.
+    // Isaac Sim WebRTC 라이브스트림 (workshop/04-스트리밍-뷰어.md): 뷰어(viewerCidr)에서 접속.
     //  - TCP 49100      : 시그널링
     //  - UDP 47998-48010: 미디어(둘 다 필수. TCP만 열면 영상 안 나옴).
     //                     Isaac Sim 5.1 은 minHostPort~maxHostPort 로 이 범위에 미디어 포트를 고정한다.
@@ -249,7 +249,7 @@ export class OmniverseWorkshopStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'ConnectNucleusFromIsaac', {
       value: `Add Nucleus connection in Isaac Sim to: ${nucleus.instancePrivateIp}`,
     });
-    // 뷰어 전용 시나리오: 마지막 클라이언트를 스트리밍 호스트로 쓰는 예시 (WORKSHOP_STREAM_VIEWER.md).
+    // 뷰어 전용 시나리오: 마지막 클라이언트를 스트리밍 호스트로 쓰는 예시 (workshop/04-스트리밍-뷰어.md).
     if (clients.length > 0) {
       const host = clients[clients.length - 1];
       new cdk.CfnOutput(this, 'StreamHostPublicIp', {
