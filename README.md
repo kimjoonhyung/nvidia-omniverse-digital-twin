@@ -79,20 +79,38 @@ flowchart LR
 
 ---
 
-## 🔐 보안 (워크숍 후 반드시)
+## 🧑‍🏫 진행자 가이드 (워크숍 운영)
 
-- **이 저장소에 실제 IP·키·비밀번호를 커밋하지 말 것.** (`.gitignore` 로 `*.pem`, `certs/`,
-  `CREDENTIALS.txt` 등 차단됨)
-- NGC API 키 폐기(rotate), Nucleus MASTER/SERVICE 비밀번호 교체(`/opt/nucleus/CREDENTIALS.txt`).
-- DCV 비밀번호는 강한 값으로. 운영 전환 시 no-SSL → SSL, 접근 범위 축소.
+참가자를 받기 전, 진행자가 준비·확인·정리하는 순서입니다.
 
----
+### 1. 시작 전 — 인프라 배포
+- [cdk-omniverse/README.md](cdk-omniverse/README.md) 로 클라이언트 N대 + Nucleus 1대 배포.
+- 인원에 맞춰 규모 조정: **`clientCount`** = GPU 대수, **`studentCount`** = 클라이언트 1대당 동시 접속 인원.
+  예) 16명 → `clientCount=2 studentCount=8` (GPU 1대를 8명이 DCV virtual 세션으로 공유).
+- 배포 완료 후 스택 **Outputs** 에서 *클라이언트별 DCV URL · Nucleus 사설IP · Navigator URL* 을 받아 둡니다.
 
-## 진행 상태
+### 2. 시작 전 — 동작 확인 (참가자 접속 전 필수)
+- [ ] 각 클라이언트 `https://<PublicIP>:8443` 접속 → `ubuntu` 로 로그인 되는지.
+- [ ] student 세션에서 `launch-isaac` 실행 → **GPU 가속**으로 뜨는지 (`dcvgldiag` 로 llvmpipe 폴백 아님 확인).
+- [ ] Nucleus 컨테이너 **12개 Up** + Navigator 200 응답 (`/opt/nucleus/READY` 파일 존재).
+- [ ] 다중세션 준비 완료: `systemctl status dcv-multiuser`, `sudo dcv list-sessions` 로 studentN 세션 확인.
 
-- ✅ **A. 씬/레이아웃** — 창고 + 로봇·설비 배치
-- ✅ **협업** — Nucleus + 자급자족 패키지 + Live 동시편집
-- ✅ **IaC** — CDK 전체 인프라 코드화 + 실배포 검증
-- ✅ **C. 실시간 데이터** — IoT→Kinesis→Isaac Sim, 실시간 차트 + 로봇 이동 + 클릭
-- ✅ **다중 접속** — DCV virtual 다중세션(1 GPU 여러 명) + WebRTC 스트리밍 뷰어
-- ⬜ **B. 동작 시뮬레이션** — PhysX 물리, 로봇/컨베이어 거동 (심화 과정으로 분리 권장)
+### 3. 참가자에게 나눠줄 것
+| 항목 | 값 |
+|------|-----|
+| 접속 주소 | 배정한 클라이언트의 `https://<PublicIP>:8443` |
+| 계정 | `student1`..`studentN` — **한 사람당 하나씩 배정** (같은 계정 중복 접속 금지) |
+| 비밀번호 | 배포 시 정한 `StudentPassword` (비웠다면 클라이언트 `/opt/dcv-multiuser/CREDENTIALS.txt`) |
+| Nucleus 연결 주소 | 출력의 **Nucleus 사설IP** (Isaac Sim / Navigator 에서 사용) |
+| 첫 문서 | [workshop/00-시작하기.md](workshop/00-시작하기.md) |
+
+### 4. 진행 중 — 참가자에게 미리 공지할 규칙
+- Isaac Sim 은 `isaac-sim.sh` 대신 **`launch-isaac`** 으로 실행 (uid별 포트 자동 분리, 포트 충돌 방지).
+- **세션 안에서 OS 로그아웃 금지** — virtual 세션이 깨져 재접속 불가. (복구는 진행자가 세션 close→create)
+- Navigator 는 snap firefox 대신 **epiphany** 로 (`epiphany http://<Nucleus사설IP>:8080`).
+
+### 5. 끝난 후 — 정리 (비용/보안)
+- **인프라 삭제**로 GPU 과금 중단 → [cdk-omniverse/README.md 삭제 절차](cdk-omniverse/README.md) 참고.
+  삭제 후 인스턴스가 실제 `terminated` 인지 반드시 확인.
+- 자격증명 정리: NGC API 키 폐기(rotate), Nucleus 비밀번호 교체.
+- 저장소에 실제 IP·키·비밀번호를 커밋하지 말 것 (`.gitignore` 가 `*.pem`·`CREDENTIALS.txt` 등 차단).
