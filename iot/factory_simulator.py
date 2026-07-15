@@ -21,6 +21,29 @@ AWS IoT Core 로 MQTT publish. 토픽: robots/<robot_id>/telemetry → Kinesis.
       --endpoint-type iot:Data-ATS --query endpointAddress --output text)
   python3 -u factory_simulator.py            # 기본 4종 전부
   python3 -u factory_simulator.py --interval 5
+
+(English)
+Fake data generator for 4 factory robot types (for the workshop).
+
+Four robot types placed in a large warehouse each publish type-appropriate operational data
+every 5 seconds to AWS IoT Core via MQTT. Topic: robots/<robot_id>/telemetry → Kinesis.
+
+Telemetry per robot type:
+  - AMR (Nova Carter, iw_hub): battery_pct, speed_mps, motor_temp_c,
+      position(x,y), heading_deg, odometer_m, status(moving/charging)
+  - ARM (Franka): joint_angle_deg, cycle_count, payload_kg, gripper(open/closed),
+      motor_temp_c, status(working/idle), position (fixed)
+  - HUMANOID (Digit): gait_speed_mps, balance_pct, battery_pct, step_count,
+      position(x,y), heading_deg, status(walking/standing)
+
+Common: robot_id, robot_type, ts. For the demo, every robot's position is updated
+(the arm oscillates in a small radius; the others roam the warehouse).
+
+Usage:
+  export IOT_ENDPOINT=$(aws iot describe-endpoint --region ap-northeast-2 \
+      --endpoint-type iot:Data-ATS --query endpointAddress --output text)
+  python3 -u factory_simulator.py            # all 4 types by default
+  python3 -u factory_simulator.py --interval 5
 """
 import argparse
 import json
@@ -38,6 +61,8 @@ ENDPOINT = os.environ.get("IOT_ENDPOINT", "REPLACE-WITH-YOUR-ENDPOINT-ats.iot.ap
 
 # 워크샵 4종 로봇 정의 (robot_id, type, 창고 내 시작 위치)
 # 좌표는 full_warehouse 내부 범위(X:-24~3, Y:-16~28)에 맞춤.
+# Workshop definitions for the 4 robots (robot_id, type, starting position in the warehouse)
+# Coordinates fit the full_warehouse interior range (X:-24~3, Y:-16~28).
 ROBOTS = [
     {"id": "nova_carter_01", "type": "amr",      "x": -15.0, "y": 0.0},
     {"id": "iw_hub_01",      "type": "amr",      "x": -8.0,  "y": 10.0},
@@ -45,7 +70,7 @@ ROBOTS = [
     {"id": "digit_01",       "type": "humanoid", "x": -5.0,  "y": 20.0},
 ]
 
-# 창고 내부 이동 한계 (벽 밖으로 안 나가게)
+# 창고 내부 이동 한계 (벽 밖으로 안 나가게) / Movement bounds inside the warehouse (keeps robots within the walls)
 WH_X_MIN, WH_X_MAX = -23.0, 2.0
 WH_Y_MIN, WH_Y_MAX = -15.0, 27.0
 
@@ -62,11 +87,11 @@ class Robot:
         self.motor_temp = random.uniform(28, 35)
         self.odometer = 0.0
         self.status = "moving" if self.type != "arm" else "working"
-        # 타입별 상태
+        # 타입별 상태 / per-type state
         self.joint = 0.0
         self.cycles = 0
         self.steps = 0
-        self.t = 0.0  # 내부 시계(로봇팔 진동 등)
+        self.t = 0.0  # 내부 시계(로봇팔 진동 등) / internal clock (arm oscillation etc.)
 
     def step(self, dt):
         self.t += dt
@@ -87,15 +112,20 @@ class Robot:
 
     def _move(self, speed, dt, wander_deg):
         """heading 방향으로 전진. 벽에 닿으면 그 축의 방향성분을 반사(bounce)해
-        모서리에 갇히지 않게 한다. 이동 거리(odometer 용)를 반환."""
+        모서리에 갇히지 않게 한다. 이동 거리(odometer 용)를 반환.
+
+        Advance along the heading. On wall contact, reflect (bounce) that axis's direction
+        component so robots don't get stuck in corners. Returns the distance moved (for the odometer).
+        """
         self.heading = (self.heading + random.gauss(0, wander_deg)) % 360
         rad = math.radians(self.heading)
         nx = self.x + math.cos(rad) * speed * dt
         ny = self.y + math.sin(rad) * speed * dt
         # X 벽 충돌 → 수평성분 반사 (heading 을 세로축 기준으로 뒤집기)
+        # X wall collision → reflect the horizontal component (mirror heading about the vertical axis)
         if nx <= WH_X_MIN or nx >= WH_X_MAX:
             self.heading = (180 - self.heading) % 360
-        # Y 벽 충돌 → 수직성분 반사
+        # Y 벽 충돌 → 수직성분 반사 / Y wall collision → reflect the vertical component
         if ny <= WH_Y_MIN or ny >= WH_Y_MAX:
             self.heading = (-self.heading) % 360
         self.x = min(WH_X_MAX, max(WH_X_MIN, nx))
@@ -103,6 +133,7 @@ class Robot:
         return speed * dt
 
     # ---- AMR: 창고 이동, 배터리 소모/충전 ----
+    # ---- AMR: roams the warehouse, battery drain/charge ----
     def _amr(self, dt):
         if self.status == "moving":
             speed = max(0.0, random.gauss(0.8, 0.2))
@@ -126,8 +157,10 @@ class Robot:
         })
 
     # ---- ARM: 고정 위치, 관절 진동 + 사이클 ----
+    # ---- ARM: fixed position, joint oscillation + cycles ----
     def _arm(self, dt):
         # 관절각 사인 진동(0~180), 픽앤플레이스 사이클
+        # Sinusoidal joint-angle oscillation (0~180), pick-and-place cycles
         self.joint = 90 + 80 * math.sin(self.t * 0.6)
         self.motor_temp += dt * random.uniform(-0.05, 0.15)
         self.motor_temp = min(max(self.motor_temp, 30), 75)
@@ -135,7 +168,7 @@ class Robot:
         if gripper == "closed" and random.random() < 0.3:
             self.cycles += 1
         self.status = "working" if random.random() > 0.1 else "idle"
-        # 데모용 미세 위치 진동(제자리에서 살짝)
+        # 데모용 미세 위치 진동(제자리에서 살짝) / Tiny positional jitter for the demo (slightly, in place)
         self.x = self.home[0] + 0.1 * math.sin(self.t)
         self.y = self.home[1] + 0.1 * math.cos(self.t)
         self.heading = (self.joint) % 360
@@ -147,7 +180,7 @@ class Robot:
             "motor_temp_c": round(self.motor_temp, 1),
         })
 
-    # ---- HUMANOID: 보행, 균형 ----
+    # ---- HUMANOID: 보행, 균형 ---- / ---- HUMANOID: walking, balance ----
     def _humanoid(self, dt):
         if self.status == "walking":
             gait = max(0.0, random.gauss(0.6, 0.15))

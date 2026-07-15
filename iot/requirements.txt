@@ -1,3 +1,5 @@
 # robot_simulator.py (IoT 발행기) 의존성.
+# Dependencies for robot_simulator.py (the IoT publisher).
 # awsiotsdk 가 awscrt(mqtt) + awsiot(mqtt_connection_builder) 를 함께 제공.
+# awsiotsdk provides both awscrt (mqtt) and awsiot (mqtt_connection_builder).
 awsiotsdk>=1.30.0

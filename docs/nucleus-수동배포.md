@@ -1,3 +1,5 @@
+> 🇰🇷 한국어 | 🇺🇸 [English](en/nucleus-manual-deploy.md)
+
 # Nucleus 협업 서버 배포 가이드 (AWS EC2)
 
 > Omniverse 협업(Live 동시 편집)을 위해 **Enterprise Nucleus Server**를 AWS EC2에

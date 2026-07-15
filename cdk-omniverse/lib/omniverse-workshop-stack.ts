@@ -7,26 +7,38 @@ import { buildNucleusUserData } from './nucleus-userdata';
 import { buildClientUserData } from './client-userdata';
 
 export interface OmniverseWorkshopStackProps extends cdk.StackProps {
-  /** Isaac Sim 클라이언트 대수 (기본 3) */
+  /** Isaac Sim 클라이언트 대수 (기본 3) / Number of Isaac Sim client instances (default 3) */
   clientCount: number;
-  /** 클라이언트 1대당 DCV virtual 세션(=동시 접속 참가자) 수 (기본 8) */
+  /**
+   * 클라이언트 1대당 DCV virtual 세션(=동시 접속 참가자) 수 (기본 8)
+   * DCV virtual sessions (= concurrent participants) per client instance (default 8)
+   */
   studentCount: number;
-  /** 클라이언트 인스턴스 타입 (GPU 필요, 기본 g6e.2xlarge) */
+  /** 클라이언트 인스턴스 타입 (GPU 필요, 기본 g6e.2xlarge) / Client instance type (GPU required, default g6e.2xlarge) */
   clientInstanceType: string;
-  /** Nucleus 서버 타입 (GPU 불필요, 기본 m7i.xlarge) */
+  /** Nucleus 서버 타입 (GPU 불필요, 기본 m7i.xlarge) / Nucleus server type (no GPU needed, default m7i.xlarge) */
   nucleusInstanceType: string;
-  /** 기존 EC2 키페어 이름 (SSH/DCV 접속용) */
+  /** 기존 EC2 키페어 이름 (SSH/DCV 접속용) / Existing EC2 key pair name (for SSH/DCV access) */
   keyName?: string;
-  /** 관리 접근(DCV 8443·SSH 22) 허용 CIDR. 반드시 본인 IP/32 로 좁힐 것 */
+  /**
+   * 관리 접근(DCV 8443·SSH 22) 허용 CIDR. 반드시 본인 IP/32 로 좁힐 것
+   * CIDR allowed for admin access (DCV 8443, SSH 22). Always narrow this to your own IP/32.
+   */
   allowCidr: string;
   /**
    * 뷰어(WebRTC 스트리밍) 허용 CIDR — 시그널링 49100·미디어 UDP 47998-48010·브라우저 8210.
    * 참가자들이 접속하는 IP 대역. 미지정 시 allowCidr 로 폴백.
+   *
+   * CIDR allowed for viewers (WebRTC streaming) — signaling 49100, media UDP 47998-48010, browser 8210.
+   * The IP range participants connect from. Falls back to allowCidr when unspecified.
    */
   viewerCidr: string;
 }
 
-/** WebRTC 미디어 UDP 포트 범위 (Isaac Sim 5.1 minHostPort~maxHostPort 와 일치). */
+/**
+ * WebRTC 미디어 UDP 포트 범위 (Isaac Sim 5.1 minHostPort~maxHostPort 와 일치).
+ * WebRTC media UDP port range (matches Isaac Sim 5.1 minHostPort~maxHostPort).
+ */
 export const WEBRTC_MEDIA_PORT_MIN = 47998;
 export const WEBRTC_MEDIA_PORT_MAX = 48010;
 
@@ -39,6 +51,8 @@ export class OmniverseWorkshopStack extends cdk.Stack {
     // ---------------------------------------------------------------
     // 0) NGC API 키 — 배포 시 CFN Parameter 로 입력받음 (NoEcho=평문 노출 방지)
     //    스택이 이 키로 Secrets Manager Secret 을 생성하고, destroy 시 함께 삭제.
+    // 0) NGC API key — provided as a CFN Parameter at deploy time (NoEcho = prevents plaintext exposure)
+    //    The stack creates a Secrets Manager Secret with this key; it is deleted together on destroy.
     // ---------------------------------------------------------------
     const ngcApiKeyParam = new cdk.CfnParameter(this, 'NgcApiKey', {
       type: 'String',
@@ -48,16 +62,21 @@ export class OmniverseWorkshopStack extends cdk.Stack {
     });
     // 입력받은 키를 Secrets Manager 에 저장 (스택 소유 → destroy 시 함께 삭제).
     // user-data 는 이 시크릿을 런타임에 읽어 NGC 로그인에 사용 → 평문키가 템플릿/로그에 안 남음.
+    // Store the provided key in Secrets Manager (owned by the stack → deleted together on destroy).
+    // user-data reads this secret at runtime for NGC login → the plaintext key never lands in templates/logs.
     const ngcSecret = new secretsmanager.CfnSecret(this, 'NgcSecret', {
       name: `${this.stackName}-ngc-api-key`,
       secretString: ngcApiKeyParam.valueAsString,
     });
-    const ngcSecretArn = ngcSecret.ref; // 완전한 ARN
+    const ngcSecretArn = ngcSecret.ref; // 완전한 ARN / full ARN
 
     // ---------------------------------------------------------------
     // 0-2) ubuntu 사용자 DCV 로그인 비밀번호 — 배포 시 입력 (NoEcho).
     //      클라이언트(및 Nucleus) user-data 가 부팅 시 ubuntu 계정에 설정.
     //      DCV 콘솔 세션 로그인에 사용. 입력 안 하면(빈 값) 설정 생략.
+    // 0-2) DCV login password for the ubuntu user — entered at deploy time (NoEcho).
+    //      Client (and Nucleus) user-data sets it on the ubuntu account at boot.
+    //      Used for DCV console session login. Skipped when left empty.
     // ---------------------------------------------------------------
     const ubuntuPasswordParam = new cdk.CfnParameter(this, 'UbuntuPassword', {
       type: 'String',
@@ -71,6 +90,9 @@ export class OmniverseWorkshopStack extends cdk.Stack {
     // 0-3) 참가자(student1..N) 공통 DCV 로그인 비밀번호 — 배포 시 입력 (NoEcho).
     //      클라이언트 user-data 가 부팅 시 studentN 계정에 동일 적용.
     //      비우면 인스턴스에서 랜덤 생성 → /opt/dcv-multiuser/CREDENTIALS.txt 에 기록.
+    // 0-3) Common DCV login password for participants (student1..N) — entered at deploy time (NoEcho).
+    //      Client user-data applies it identically to the studentN accounts at boot.
+    //      If empty, the instance generates a random one → recorded in /opt/dcv-multiuser/CREDENTIALS.txt.
     // ---------------------------------------------------------------
     const studentPasswordParam = new cdk.CfnParameter(this, 'StudentPassword', {
       type: 'String',
@@ -81,12 +103,14 @@ export class OmniverseWorkshopStack extends cdk.Stack {
     const studentPassword = studentPasswordParam.valueAsString;
 
     // 기존 EC2 키페어를 이름으로 참조 (deprecated keyName 대신 keyPair 사용)
+    // Reference an existing EC2 key pair by name (use keyPair instead of the deprecated keyName)
     const keyPair = keyName
       ? ec2.KeyPair.fromKeyPairName(this, 'KeyPair', keyName)
       : undefined;
 
     // ---------------------------------------------------------------
     // 1) VPC — 단일 AZ, 퍼블릭 서브넷 (워크숍 PoC용. 운영은 private+NAT 권장)
+    // 1) VPC — single AZ, public subnet (for workshop PoC; private+NAT recommended for production)
     // ---------------------------------------------------------------
     const vpc = new ec2.Vpc(this, 'WorkshopVpc', {
       maxAzs: 1,
@@ -103,11 +127,15 @@ export class OmniverseWorkshopStack extends cdk.Stack {
     //    - 클라이언트(Isaac Sim): DCV 8443 + SSH 22 (allowCidr 에서만)
     //    - Nucleus: VPC 내부에서 서비스 포트, SSH 는 allowCidr
     //    - VPC 내부 상호 통신 허용 (클라이언트 <-> Nucleus)
+    // 2) Security groups
+    //    - Client (Isaac Sim): DCV 8443 + SSH 22 (from allowCidr only)
+    //    - Nucleus: service ports from inside the VPC, SSH from allowCidr
+    //    - Allow mutual traffic within the VPC (client <-> Nucleus)
     // ---------------------------------------------------------------
     const clientSg = new ec2.SecurityGroup(this, 'ClientSg', {
       vpc, description: 'Isaac Sim client - DCV + SSH', allowAllOutbound: true,
     });
-    // 관리 접근(DCV·SSH): allowCidr 에서만.
+    // 관리 접근(DCV·SSH): allowCidr 에서만. / Admin access (DCV, SSH): from allowCidr only.
     clientSg.addIngressRule(ec2.Peer.ipv4(allowCidr), ec2.Port.tcp(8443), 'DCV');
     clientSg.addIngressRule(ec2.Peer.ipv4(allowCidr), ec2.Port.tcp(22), 'SSH');
     // Isaac Sim WebRTC 라이브스트림 (workshop/04-스트리밍-뷰어.md): 뷰어(viewerCidr)에서 접속.
@@ -116,6 +144,12 @@ export class OmniverseWorkshopStack extends cdk.Stack {
     //                     Isaac Sim 5.1 은 minHostPort~maxHostPort 로 이 범위에 미디어 포트를 고정한다.
     //  - TCP 8210       : (부록) Docker Compose 브라우저 웹 뷰어. 네이티브 방식엔 불필요.
     // 3대 모두 열어두고, 워크샵에서 1대를 스트리밍 호스트로 지정해 쓴다.
+    // Isaac Sim WebRTC livestream (workshop/04-스트리밍-뷰어.md): viewers connect from viewerCidr.
+    //  - TCP 49100      : signaling
+    //  - UDP 47998-48010: media (both required; opening TCP alone yields no video).
+    //                     Isaac Sim 5.1 pins media ports to this range via minHostPort~maxHostPort.
+    //  - TCP 8210       : (appendix) Docker Compose browser web viewer. Not needed for the native approach.
+    // Keep all three open on every instance; the workshop designates one instance as the streaming host.
     clientSg.addIngressRule(ec2.Peer.ipv4(viewerCidr), ec2.Port.tcp(49100), 'Isaac WebRTC signaling');
     clientSg.addIngressRule(
       ec2.Peer.ipv4(viewerCidr),
@@ -128,7 +162,7 @@ export class OmniverseWorkshopStack extends cdk.Stack {
       vpc, description: 'Nucleus server', allowAllOutbound: true,
     });
     nucleusSg.addIngressRule(ec2.Peer.ipv4(allowCidr), ec2.Port.tcp(22), 'SSH admin');
-    // Nucleus 서비스 포트 (VPC 내부 클라이언트가 접속)
+    // Nucleus 서비스 포트 (VPC 내부 클라이언트가 접속) / Nucleus service ports (accessed by clients inside the VPC)
     const nucleusPorts: Array<[number, number, string]> = [
       [3006, 3030, 'nucleus core/api/lft/tagging/metrics'],
       [3100, 3180, 'auth'],
@@ -140,10 +174,12 @@ export class OmniverseWorkshopStack extends cdk.Stack {
       nucleusSg.addIngressRule(ec2.Peer.ipv4(vpcCidr), ec2.Port.tcpRange(from, to), desc);
     }
     // (선택) Navigator 웹을 본인 IP에서 직접 보고 싶으면 8080 을 allowCidr 에도 개방
+    // (Optional) Also open 8080 to allowCidr if you want to view the Navigator web UI directly from your own IP
     nucleusSg.addIngressRule(ec2.Peer.ipv4(allowCidr), ec2.Port.tcp(8080), 'Navigator web (admin)');
 
     // ---------------------------------------------------------------
     // 3) IAM 역할 — SSM 접속 + (Nucleus는) NGC 시크릿 읽기
+    // 3) IAM roles — SSM access + (for Nucleus) reading the NGC secret
     // ---------------------------------------------------------------
     const baseRole = (id2: string) => {
       const r = new iam.Role(this, id2, {
@@ -158,6 +194,8 @@ export class OmniverseWorkshopStack extends cdk.Stack {
     const nucleusRole = baseRole('NucleusRole');
     // Nucleus 역할에 NGC 시크릿 읽기 권한 부여.
     // CfnSecret 의 ref 는 완전한 ARN(접미사 포함)이므로 그대로 사용.
+    // Grant the Nucleus role permission to read the NGC secret.
+    // CfnSecret's ref is the full ARN (including the suffix), so use it as-is.
     nucleusRole.addToPolicy(new iam.PolicyStatement({
       actions: ['secretsmanager:GetSecretValue', 'secretsmanager:DescribeSecret'],
       resources: [ngcSecret.ref],
@@ -167,10 +205,14 @@ export class OmniverseWorkshopStack extends cdk.Stack {
     // 4) AMI
     //    - 클라이언트: NVIDIA Isaac Sim 마켓플레이스 AMI (리전별 ID 다름 → context로 주입)
     //    - Nucleus:   Ubuntu 22.04 (자동 최신 조회)
+    // 4) AMIs
+    //    - Client: NVIDIA Isaac Sim Marketplace AMI (ID differs per region → injected via context)
+    //    - Nucleus: Ubuntu 22.04 (latest looked up automatically)
     // ---------------------------------------------------------------
     const isaacAmiId = this.node.tryGetContext('isaacAmiId');
     if (!isaacAmiId) {
       // 합성은 되게 하되, 배포 전 반드시 지정하도록 경고
+      // Let synthesis succeed, but warn that it must be specified before deploying
       cdk.Annotations.of(this).addWarning(
         "context 'isaacAmiId' 미지정 — Isaac Sim 마켓플레이스 AMI ID를 -c isaacAmiId=ami-xxxx 로 전달하세요 " +
         '(리전·버전마다 다르며 마켓플레이스 구독 동의 필요).',
@@ -186,6 +228,7 @@ export class OmniverseWorkshopStack extends cdk.Stack {
 
     // ---------------------------------------------------------------
     // 5) Nucleus 서버 (user-data 로 Docker+NGC+compose 자동 설치)
+    // 5) Nucleus server (Docker+NGC+compose installed automatically via user-data)
     // ---------------------------------------------------------------
     const nucleus = new ec2.Instance(this, 'NucleusServer', {
       vpc,
@@ -201,6 +244,8 @@ export class OmniverseWorkshopStack extends cdk.Stack {
       }],
       // Nucleus admin(omniverse) 비번을 StudentPassword 와 동일하게 → 참가자가 외우기 쉽게.
       //   (빈 값이면 nucleus-userdata 가 랜덤 생성 후 CREDENTIALS.txt 에 기록)
+      // Make the Nucleus admin (omniverse) password identical to StudentPassword → easy for participants to remember.
+      //   (If empty, nucleus-userdata generates a random one and records it in CREDENTIALS.txt)
       userData: buildNucleusUserData({ region: this.region, ngcSecretArn, ubuntuPassword, masterPassword: studentPassword }),
     });
     cdk.Tags.of(nucleus).add('Name', 'omniverse-nucleus');
@@ -208,11 +253,16 @@ export class OmniverseWorkshopStack extends cdk.Stack {
 
     // ---------------------------------------------------------------
     // 6) Isaac Sim 클라이언트 N대 (개수 파라미터화)
+    // 6) N Isaac Sim clients (count is parameterized)
     // ---------------------------------------------------------------
     // 클라이언트 user-data: ubuntu 비밀번호 설정 + DCV virtual 다중세션 자동 구성.
     //   - nice-xdcv 설치 + GPU Xorg :0 정렬 + student1..N 계정/세션 생성 (client-userdata.ts).
     //   - GPU 1대에 studentCount 명이 동시에 DCV 로 붙어 디지털 트윈 씬을 GPU 가속으로 본다.
     // NoEcho 파라미터라 콘솔/이벤트엔 가려지나, user-data 자체는 평문 저장 → PoC 한정.
+    // Client user-data: sets the ubuntu password + auto-configures DCV virtual multi-sessions.
+    //   - Installs nice-xdcv + aligns GPU Xorg to :0 + creates student1..N accounts/sessions (client-userdata.ts).
+    //   - studentCount people attach to one GPU concurrently via DCV and view the digital twin scene GPU-accelerated.
+    // NoEcho parameters are masked in the console/events, but user-data itself is stored in plaintext → PoC only.
     const clientUserData = buildClientUserData({ ubuntuPassword, studentCount, studentPassword });
 
     const clients: ec2.Instance[] = [];
@@ -229,6 +279,7 @@ export class OmniverseWorkshopStack extends cdk.Stack {
         blockDevices: [{
           deviceName: '/dev/sda1',
           // Isaac Sim 마켓플레이스 AMI 스냅샷은 >=512GB 요구
+          // The Isaac Sim Marketplace AMI snapshot requires >=512GB
           volume: ec2.BlockDeviceVolume.ebs(512, { volumeType: ec2.EbsDeviceVolumeType.GP3 }),
         }],
       });
@@ -238,7 +289,7 @@ export class OmniverseWorkshopStack extends cdk.Stack {
     }
 
     // ---------------------------------------------------------------
-    // 7) 출력
+    // 7) 출력 / Outputs
     // ---------------------------------------------------------------
     new cdk.CfnOutput(this, 'NucleusPrivateIp', { value: nucleus.instancePrivateIp });
     new cdk.CfnOutput(this, 'NucleusPublicIp', { value: nucleus.instancePublicIp });
@@ -250,6 +301,7 @@ export class OmniverseWorkshopStack extends cdk.Stack {
       value: `Add Nucleus connection in Isaac Sim to: ${nucleus.instancePrivateIp}`,
     });
     // 뷰어 전용 시나리오: 마지막 클라이언트를 스트리밍 호스트로 쓰는 예시 (workshop/04-스트리밍-뷰어.md).
+    // Viewer-only scenario: example using the last client as the streaming host (workshop/04-스트리밍-뷰어.md).
     if (clients.length > 0) {
       const host = clients[clients.length - 1];
       new cdk.CfnOutput(this, 'StreamHostPublicIp', {

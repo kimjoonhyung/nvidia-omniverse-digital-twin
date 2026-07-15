@@ -10,6 +10,20 @@
 # 실행:  bash ~/nvidia-omniverse-digital-twin/iot/setup_publisher.sh
 # 이후:  cd ~/nvidia-omniverse-digital-twin/iot
 #        ~/venv/bin/python -u robot_simulator.py --interval 5
+#
+# (English)
+# Environment setup for the IoT publisher (robot_simulator.py) — run once from any account. Idempotent.
+#
+# What it does:
+#   1) Creates the ~/venv Python virtual environment (if absent). The system python is
+#      PEP668 (externally-managed), which blocks direct pip installs, so a venv is used.
+#      Requires the python3-venv package.
+#   2) Installs awsiotsdk (awscrt+awsiot).
+#   3) Looks up IOT_ENDPOINT, caches it in ~/.iot_endpoint + adds an export to ~/.bashrc.
+#
+# Run:   bash ~/nvidia-omniverse-digital-twin/iot/setup_publisher.sh
+# Then:  cd ~/nvidia-omniverse-digital-twin/iot
+#        ~/venv/bin/python -u robot_simulator.py --interval 5
 set -uo pipefail
 REGION="${AWS_REGION:-ap-northeast-2}"
 VENV="$HOME/venv"

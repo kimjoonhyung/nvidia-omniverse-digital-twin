@@ -1,3 +1,5 @@
+> 🇰🇷 한국어 | 🇺🇸 [English](en/02-collaboration-nucleus-live.md)
+
 # 02. 협업 — Nucleus 연결 + Live 동시편집 ★
 
 > **← 이전:** [01. 씬 만들기](01-씬-만들기.md) &nbsp;|&nbsp; **다음 →** [03. 실시간 데이터](03-실시간-데이터.md)

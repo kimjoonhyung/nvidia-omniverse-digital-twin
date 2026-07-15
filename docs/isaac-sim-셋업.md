@@ -1,3 +1,5 @@
+> 🇰🇷 한국어 | 🇺🇸 [English](en/isaac-sim-setup.md)
+
 # 공장/창고 디지털 트윈 구축 가이드 (NVIDIA Isaac Sim)
 
 > Ubuntu + NVIDIA GPU 서버에 원격(DCV)으로 접속해, NVIDIA Isaac Sim으로

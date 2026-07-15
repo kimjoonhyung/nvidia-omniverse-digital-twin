@@ -1,3 +1,5 @@
+> 🇰🇷 한국어 | 🇺🇸 [English](en/iot-dev-notes.md)
+
 # C단계 — 실시간 데이터 연동 트윈 (AWS IoT → Isaac Sim 모니터링)
 
 가짜 로봇이 운영 데이터를 5초마다 AWS로 보내고, Isaac Sim 안에서 실시간 차트로 보는 PoC.

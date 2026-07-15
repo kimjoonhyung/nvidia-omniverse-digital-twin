@@ -5,17 +5,24 @@ import { OmniverseWorkshopStack } from '../lib/omniverse-workshop-stack';
 const app = new cdk.App();
 
 // ---- 파라미터 (cdk.json context 또는 -c 로 오버라이드) ----
+// ---- Parameters (override via cdk.json context or -c) ----
 // 예: cdk deploy -c clientCount=5 -c clientInstanceType=g6e.4xlarge
+// e.g.: cdk deploy -c clientCount=5 -c clientInstanceType=g6e.4xlarge
 const clientCount = Number(app.node.tryGetContext('clientCount') ?? 3);
 // studentCount: 클라이언트 1대당 DCV virtual 세션(동시 접속 참가자) 수. GPU 1대 여러 명 공유.
 //   예: -c studentCount=8  (기본 8). L40S 48GB 기준 모니터링 용도 권장치.
+// studentCount: DCV virtual sessions (concurrent participants) per client. Multiple people share one GPU.
+//   e.g.: -c studentCount=8 (default 8). Recommended for monitoring use on an L40S 48GB.
 const studentCount = Number(app.node.tryGetContext('studentCount') ?? 8);
 const clientInstanceType = app.node.tryGetContext('clientInstanceType') ?? 'g6e.2xlarge';
 const nucleusInstanceType = app.node.tryGetContext('nucleusInstanceType') ?? 'm7i.xlarge';
-const keyName = app.node.tryGetContext('keyName'); // 필수: 기존 EC2 키페어 이름
+const keyName = app.node.tryGetContext('keyName'); // 필수: 기존 EC2 키페어 이름 / Required: existing EC2 key pair name
 // allowCidr: DCV(8443)/SSH(22)/WebRTC(49100·47998)/브라우저뷰어(8210) 허용 IP.
 // 보안상 반드시 '내 공인 IP/32' 로 좁힌다. 미지정이거나 0.0.0.0/0(전체 개방)이면 배포를 막는다.
 //   예:  -c allowCidr=$(curl -s https://checkip.amazonaws.com)/32
+// allowCidr: IPs allowed for DCV(8443)/SSH(22)/WebRTC(49100, 47998)/browser viewer(8210).
+// For security, always narrow it to 'my public IP/32'. Deployment is blocked if unset or 0.0.0.0/0 (open to all).
+//   e.g.:  -c allowCidr=$(curl -s https://checkip.amazonaws.com)/32
 const allowCidr = app.node.tryGetContext('allowCidr');
 if (!allowCidr || allowCidr === '0.0.0.0/0') {
   throw new Error(
@@ -27,11 +34,17 @@ if (!allowCidr || allowCidr === '0.0.0.0/0') {
 // 참가자들이 접속하는 IP 대역을 여기에 지정한다(예: 사내망 15.0.0.0/8, 또는 각자 /32).
 // 미지정 시 allowCidr 로 폴백(강사 혼자 테스트하는 경우). 전체 개방(0.0.0.0/0)은 금지.
 //   예:  -c viewerCidr=15.0.0.0/8
+// viewerCidr: range allowed for viewers (WebRTC streaming) — signaling 49100, media UDP 47998-48010, browser 8210.
+// Specify the IP range participants connect from (e.g. corporate network 15.0.0.0/8, or individual /32s).
+// Falls back to allowCidr when unspecified (instructor testing alone). Opening to all (0.0.0.0/0) is forbidden.
+//   e.g.:  -c viewerCidr=15.0.0.0/8
 const viewerCidr = app.node.tryGetContext('viewerCidr') ?? allowCidr;
 if (viewerCidr === '0.0.0.0/0') {
   throw new Error("context 'viewerCidr' 는 전체 개방(0.0.0.0/0) 금지. 뷰어 IP 대역으로 좁혀 지정하세요.");
 }
 // NGC API 키는 -c 가 아니라 배포 시 CFN Parameter 로 입력:
+//   cdk deploy --parameters NgcApiKey=nvapi-...
+// The NGC API key is provided as a CFN Parameter at deploy time, not via -c:
 //   cdk deploy --parameters NgcApiKey=nvapi-...
 
 new OmniverseWorkshopStack(app, 'OmniverseWorkshopStack', {

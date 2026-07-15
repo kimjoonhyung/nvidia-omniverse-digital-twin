@@ -1,3 +1,5 @@
+> 🇰🇷 한국어 | 🇺🇸 [English](README.en.md)
+
 # CDK — Omniverse 워크숍 인프라 (N Isaac Sim + 1 Nucleus)
 
 수동으로 구축했던 협업 인프라(**N대 Isaac Sim 클라이언트 + 1대 Nucleus 서버**)를
